@@ -1,0 +1,9 @@
+{
+  "author": "Thermetrics",
+  "appId": "6a4dde76cf05d56ac9e4f121",
+  "version": "1.0.0",
+  "versionDescription": "Manufacturing & Assembly app — work orders, parts picking, inventory",
+  "config": {
+    "fields": {}
+  }
+}

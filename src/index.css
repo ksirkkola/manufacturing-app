@@ -1,0 +1,11 @@
+@import url('https://fonts.googleapis.com/css?family=Nunito+Sans:200,400,400i,600,700,800');
+
+:root[data-theme=light] {
+  --chakra-colors-chakra-body-bg: var(--chakra-colors-white) !important;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}

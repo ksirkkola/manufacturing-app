@@ -1,0 +1,10 @@
+
+import { createIcon } from '@chakra-ui/react';
+
+export const HailerFolder = createIcon({
+    displayName: 'HailerFolder',
+    viewBox: '0 0 24 24',
+    path: [
+        <path fillRule="evenodd" clipRule="evenodd" d="M19 6.94H12.529C12.198 6.94 11.888 6.776 11.702 6.502L10.297 4.437C10.111 4.164 9.802 4 9.471 4H5C3.895 4 3 4.895 3 6V18C3 19.105 3.895 20 5 20H19C20.105 20 21 19.105 21 18V8.94C21 7.836 20.105 6.94 19 6.94Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill='none'/>
+    ]
+});

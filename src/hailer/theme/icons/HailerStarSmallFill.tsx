@@ -1,0 +1,10 @@
+
+import { createIcon } from '@chakra-ui/react';
+
+export const HailerStarSmallFill = createIcon({
+    displayName: 'HailerStarSmallFill',
+    viewBox: '0 0 16 16',
+    path: [
+        <path fillRule="evenodd" clipRule="evenodd" d="M7.99511 12.54L10.3358 13.8175C11.4908 14.4456 12.3333 13.3119 12.1345 12.54L11.681 9.74134L13.6528 7.74378C14.4602 6.78106 13.6998 5.74024 12.9916 5.64773L10.2718 5.23943L9.00767 2.57534C8.61714 1.90125 7.50339 1.72049 6.9863 2.57534L5.72264 5.23407L2.95922 5.65777C1.90427 5.86848 1.76695 7.17279 2.31571 7.71444L4.31083 9.74402L3.84158 12.671C3.73744 13.5386 4.57052 14.2682 5.5456 13.8837L7.99511 12.54Z" fill="currentColor"/>
+    ]
+});
