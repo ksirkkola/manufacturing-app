@@ -80,13 +80,21 @@ function main() {
   // can't linger in a file or leak via `git remote -v`.
   const branch = tryRun('git rev-parse --abbrev-ref HEAD') || 'main';
   const auth = Buffer.from(`x-access-token:${token}`).toString('base64');
+  // Redact both the raw token AND its base64 form — execSync errors echo the full failed
+  // command (including the auth header), so the base64 string must be scrubbed too, not
+  // just the raw github_pat_ pattern.
+  function redact(text) {
+    return String(text)
+      .split(auth).join('[REDACTED]')
+      .replace(/github_pat_[A-Za-z0-9_]+/g, '[REDACTED]');
+  }
   try {
     run(`git -c http.extraHeader="Authorization: Basic ${auth}" push origin ${branch}`);
     console.log(`[git-sync] Pushed to origin/${branch}.`);
   } catch (err) {
     console.error('[git-sync] Push FAILED — publish will continue, but GitHub is now out of sync again. '
       + 'Resolve this before the next edit.');
-    console.error(String(err.message || err).replace(/github_pat_[A-Za-z0-9_]+/g, '[REDACTED]'));
+    console.error(redact(err.message || err));
   }
 }
 
