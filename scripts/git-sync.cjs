@@ -21,7 +21,12 @@ const fs = require('fs');
 const path = require('path');
 
 const APP_DIR = path.resolve(__dirname, '..');
-const ENV_FILE = path.resolve(APP_DIR, '../../.env');
+// Dedicated file, NOT the shared project .env — the Hailer publish tool rewrites that file
+// on every publish (regenerating HAILER_USER_API_KEY), wiping anything else stored there.
+// Learned this the hard way: the token silently disappeared after the very first publish
+// run following its initial setup.
+const TOKEN_FILE = path.resolve(APP_DIR, '../../.github-token');
+const LEGACY_ENV_FILE = path.resolve(APP_DIR, '../../.env'); // fallback for old setups
 
 function run(cmd, opts = {}) {
   return execSync(cmd, { cwd: APP_DIR, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts }).trim();
@@ -33,9 +38,17 @@ function tryRun(cmd) {
 
 function readEnvToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
-  if (!fs.existsSync(ENV_FILE)) return null;
-  const match = fs.readFileSync(ENV_FILE, 'utf8').match(/^GITHUB_TOKEN=(.+)$/m);
-  return match ? match[1].trim() : null;
+  if (fs.existsSync(TOKEN_FILE)) {
+    const value = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+    if (value) return value;
+  }
+  // Fallback for anything set up before this file existed — .env can get wiped by the
+  // publish tool, so this path is unreliable long-term, but still worth checking.
+  if (fs.existsSync(LEGACY_ENV_FILE)) {
+    const match = fs.readFileSync(LEGACY_ENV_FILE, 'utf8').match(/^GITHUB_TOKEN=(.+)$/m);
+    if (match) return match[1].trim();
+  }
+  return null;
 }
 
 function main() {
@@ -52,8 +65,9 @@ function main() {
 
   const token = readEnvToken();
   if (!token) {
-    console.warn('[git-sync] No GITHUB_TOKEN found (checked env + ../../.env) — skipping push. '
-      + 'Local commits (if any) will NOT reach GitHub. Add GITHUB_TOKEN to the project .env to fix.');
+    console.warn('[git-sync] No GitHub token found (checked env var, ../../.github-token, legacy ../../.env) '
+      + '— skipping push. Local commits (if any) will NOT reach GitHub. '
+      + 'Put the token in a .github-token file at the project root (NOT .env — the publish tool rewrites that).');
     return;
   }
 
