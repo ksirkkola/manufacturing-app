@@ -11,10 +11,11 @@
     "build-development": "NODE_TLS_REJECT_UNAUTHORIZED=0 vite build --sourcemap=true --mode development",
     "build-staging": "vite build --mode staging",
     "build-production": "vite build --mode production",
-    "publish-local": "npm run build-production && LOCAL=true node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --local",
-    "publish-development": "npm run build-development && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --development",
-    "publish-staging": "npm run build-staging && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --staging",
-    "publish-production": "npm run build-production && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --production"
+    "publish-local": "npm run git-sync && npm run build-production && LOCAL=true node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --local",
+    "publish-development": "npm run git-sync && npm run build-development && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --development",
+    "publish-staging": "npm run git-sync && npm run build-staging && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --staging",
+    "publish-production": "npm run git-sync && npm run build-production && node node_modules/@hailer/app-sdk/lib/tools/publish.cjs ./`npm pack` --production --env-file ../../.env",
+    "git-sync": "node scripts/git-sync.cjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^2.10.9",

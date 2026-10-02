@@ -1,10 +1,13 @@
 import {
-  Box, Badge, Flex, HStack, Input, InputGroup, InputLeftElement,
+  Box, Badge, Button, Flex, HStack, Input, InputGroup, InputLeftElement,
   Select, SimpleGrid, Spinner, Stat, StatLabel, StatNumber,
   Table, Tbody, Td, Text, Th, Thead, Tr, useColorModeValue,
 } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
+import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
+import ReceiveStockModal from './ReceiveStockModal';
+import LogStockTransactionModal from './LogStockTransactionModal';
 
 const INSIGHT_TRANSACTIONS = '6a4f6fd97e6d5987425c027d';
 
@@ -52,8 +55,8 @@ const TYPE_COLOR: Record<string, string> = {
 
 const ALL_TYPES = ['Received', 'Used in Build', 'Used on Trip', 'Sold (Online)', 'Returned', 'Adjusted', 'Written Off'];
 
-interface RefreshProps { refreshKey?: number }
-export default function StockTransactionsTab({ refreshKey = 0 }: RefreshProps) {
+interface RefreshProps { refreshKey?: number; onDataChanged?: () => void }
+export default function StockTransactionsTab({ refreshKey = 0, onDataChanged }: RefreshProps) {
   const { hailer, inside } = useApp();
   const [rows, setRows]       = useState<TxnRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,8 @@ export default function StockTransactionsTab({ refreshKey = 0 }: RefreshProps) {
   const [search, setSearch]   = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [dirFilter, setDirFilter]   = useState('All');
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -71,7 +76,7 @@ export default function StockTransactionsTab({ refreshKey = 0 }: RefreshProps) {
   useEffect(() => {
     if (!inside) return;
     setLoading(true);
-    hailer!.insight.data(INSIGHT_TRANSACTIONS, { update: true })
+    fetchInsight(hailer!, INSIGHT_TRANSACTIONS)
       .then(data => { setRows(parseInsight(data)); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
   }, [inside, refreshKey]);
@@ -100,6 +105,27 @@ export default function StockTransactionsTab({ refreshKey = 0 }: RefreshProps) {
 
   return (
     <Box>
+      <Flex justify="flex-end" mb={4} gap={2}>
+        <Button colorScheme="blue" variant="outline" size="sm" onClick={() => setLogOpen(true)}>
+          + Log Transaction
+        </Button>
+        <Button colorScheme="green" size="sm" onClick={() => setReceiveOpen(true)}>
+          + Receive Stock
+        </Button>
+      </Flex>
+
+      <ReceiveStockModal
+        isOpen={receiveOpen}
+        onClose={() => setReceiveOpen(false)}
+        onSuccess={() => onDataChanged?.()}
+      />
+
+      <LogStockTransactionModal
+        isOpen={logOpen}
+        onClose={() => setLogOpen(false)}
+        onSuccess={() => onDataChanged?.()}
+      />
+
       {/* Summary */}
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={6}>
         <Box p={4} bg={cardBg} borderRadius="md" shadow="sm" border="1px" borderColor={borderColor}>

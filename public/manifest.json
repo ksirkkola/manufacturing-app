@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.0.0",
-  "versionDescription": "Manufacturing & Assembly app — work orders, parts picking, inventory",
+  "version": "1.24.4",
+  "versionDescription": "Reference tab fix: status badges (e.g. 'Out for Recalibration', 'Sent Out for Repair', 'Partially Received') were being squeezed narrower than their text by the surrounding layout, causing the label to overflow its badge and overlap the description next to it. Badges now hold their full natural width (flexShrink: 0) so this can't happen regardless of label length or screen width.",
   "config": {
     "fields": {}
   }

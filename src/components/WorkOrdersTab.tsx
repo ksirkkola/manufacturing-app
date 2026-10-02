@@ -3,6 +3,7 @@ import {
   Text, Flex, useColorModeValue, Heading, HStack, Select, Button,
 } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
+import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
 
 const INSIGHT_WORK_ORDERS = '6a4ddad5d9b751c8857618a6';
@@ -64,7 +65,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   useEffect(() => {
     if (!inside) return;
     setLoading(true);
-    hailer!.insight.data(INSIGHT_WORK_ORDERS, { update: true })
+    fetchInsight(hailer!, INSIGHT_WORK_ORDERS)
       .then(data => { setRows(parseInsight(data)); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
   }, [inside, refreshKey]);

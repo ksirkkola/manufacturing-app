@@ -1,17 +1,37 @@
 import {
-  Box, Badge, Flex, Heading, Input, InputGroup, InputLeftElement,
+  Box, Badge, Button, Center, Checkbox, Flex, Heading, Icon, Image, Input, InputGroup, InputLeftElement,
   SimpleGrid, Spinner, Stat, StatHelpText, StatLabel, StatNumber,
   Table, Tbody, Td, Text, Th, Thead, Tr, useColorModeValue, Select, HStack,
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
+import { HailerDocImage } from '../hailer/theme/icons/HailerDocImage';
+import NewPurchaseOrderModal from './NewPurchaseOrderModal';
 
 const INSIGHT_INVENTORY = '6a4dddce6f85b474eebdc1f7';
+
+// File-modifier fields store a JSON-stringified array of file IDs.
+function firstFileId(raw: unknown): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return parsed[0];
+  } catch {
+    if (typeof raw === 'string') return raw;
+  }
+  return undefined;
+}
+
+function imageUrl(fileId: string): string {
+  return `https://api.hailer.com/image/thumb/${fileId}`;
+}
 
 interface InventoryRow {
   id: string;
   name: string;
   sku: string | null;
+  photo: string | null;
   quantityOnHand: number | null;
   minimumStock: number | null;
   supplier: string | null;
@@ -43,6 +63,8 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
   const [error, setError]       = useState<string | null>(null);
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [reorderRows, setReorderRows] = useState<InventoryRow[] | null>(null);
 
   const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -52,7 +74,7 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
   useEffect(() => {
     if (!inside) return;
     setLoading(true);
-    hailer!.insight.data(INSIGHT_INVENTORY, { update: true })
+    fetchInsight(hailer!, INSIGHT_INVENTORY)
       .then(data => { setRows(parseInsight(data)); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
   }, [inside, refreshKey]);
@@ -73,6 +95,33 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
 
     return matchSearch && matchFilter;
   });
+
+  function suggestedQty(r: InventoryRow): number {
+    const qty = Number(r.quantityOnHand) || 0;
+    const min = Number(r.minimumStock) || 0;
+    return Math.max(min - qty, 1);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // If every selected row shares the same Supplier text, pre-fill it on the PO —
+  // otherwise leave it blank since the modal's Supplier field is one value for the whole order.
+  const reorderPrefill = useMemo(() => {
+    if (!reorderRows || reorderRows.length === 0) return null;
+    const suppliers = new Set(reorderRows.map(r => (r.supplier || '').trim()).filter(Boolean));
+    return {
+      lines: reorderRows.map(r => ({ itemId: r.id, sku: r.sku, quantity: suggestedQty(r) })),
+      supplier: suppliers.size === 1 ? [...suppliers][0] : null,
+    };
+  }, [reorderRows]);
+
+  const selectedRows = rows.filter(r => selected.has(r.id));
 
   if (loading) return <Flex justify="center" align="center" h="300px"><Spinner size="xl" /></Flex>;
   if (error)   return <Text color="red.500">Error: {error}</Text>;
@@ -128,6 +177,11 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
           <option value="out">Out of Stock</option>
         </Select>
         <Text fontSize="sm" color="gray.500">{filteredRows.length} items</Text>
+        {selected.size > 0 && (
+          <Button size="sm" colorScheme="blue" onClick={() => setReorderRows(selectedRows)}>
+            Reorder Selected ({selected.size})
+          </Button>
+        )}
       </HStack>
 
       {/* Table */}
@@ -135,6 +189,8 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
         <Table variant="simple" size="sm">
           <Thead bg={theadBg}>
             <Tr>
+              <Th px={2}></Th>
+              <Th>Photo</Th>
               <Th>SKU</Th>
               <Th>Name</Th>
               <Th>Bin</Th>
@@ -143,6 +199,7 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
               <Th>Status</Th>
               <Th>Supplier</Th>
               <Th isNumeric>Supplier Price</Th>
+              <Th>Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -157,6 +214,21 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
                   onClick={() => hailer!.ui.activity.open(r.id)}
                   bg={isOut ? useColorModeValue('red.50', 'red.900') :
                       isLow ? useColorModeValue('orange.50', 'orange.900') : undefined}>
+                  <Td px={2} onClick={(e) => e.stopPropagation()} cursor="default">
+                    <Checkbox isChecked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} />
+                  </Td>
+                  <Td onClick={(e) => e.stopPropagation()} cursor="default">
+                    {(() => {
+                      const fileId = firstFileId(r.photo);
+                      return fileId ? (
+                        <Image src={imageUrl(fileId)} alt={r.name} boxSize="36px" objectFit="contain" borderRadius="md" />
+                      ) : (
+                        <Center boxSize="36px" bg={theadBg} borderRadius="md">
+                          <Icon as={HailerDocImage} boxSize={4} color="gray.300" />
+                        </Center>
+                      );
+                    })()}
+                  </Td>
                   <Td whiteSpace="nowrap" fontWeight="medium">{r.sku || '—'}</Td>
                   <Td maxW="200px">
                     <Text fontWeight="medium" noOfLines={1}>{r.name}</Text>
@@ -175,12 +247,27 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
                   </Td>
                   <Td maxW="150px" isTruncated>{r.supplier || '—'}</Td>
                   <Td isNumeric>{fmt(r.supplierPrice)}</Td>
+                  <Td onClick={(e) => e.stopPropagation()} cursor="default">
+                    {(isLow || isOut) && (
+                      <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setReorderRows([r])}>
+                        Reorder
+                      </Button>
+                    )}
+                  </Td>
                 </Tr>
               );
             })}
           </Tbody>
         </Table>
       </Box>
+
+      <NewPurchaseOrderModal
+        isOpen={!!reorderRows}
+        onClose={() => setReorderRows(null)}
+        onSuccess={() => { setReorderRows(null); setSelected(new Set()); }}
+        prefillLines={reorderPrefill?.lines}
+        prefillSupplier={reorderPrefill?.supplier}
+      />
     </Box>
   );
 }
