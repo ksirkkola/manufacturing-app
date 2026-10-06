@@ -10,13 +10,14 @@ import SearchableSelect from './SearchableSelect';
 import { HailerXSmall } from '../hailer/theme/icons/HailerXSmall';
 import {
   PO_WORKFLOW, PO_PHASE_ORDERED, PO_SUPPLIER, PO_ORDER_REFERENCE, PO_ORDER_DATE,
-  PO_EXPECTED_DELIVERY_DATE, PO_NOTES,
+  PO_EXPECTED_DELIVERY_DATE, PO_NOTES, PO_APPROVED_BY,
   PO_LINE_WORKFLOW, POL_PHASE_PENDING, POL_PARENT_ORDER, POL_INVENTORY_ITEM, POL_SKU,
   POL_QTY_ORDERED, POL_UNIT_COST,
   INSIGHT_INVENTORY,
 } from './purchaseOrderConstants';
 
 interface InventoryOption { _id: string; name: string; sku: string | null; }
+interface UserOption { _id: string; name: string; }
 
 interface LineDraft {
   key: string;
@@ -59,16 +60,18 @@ interface Props {
 }
 
 export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, prefillLines, prefillSupplier }: Props) {
-  const { hailer } = useApp();
+  const { hailer, user } = useApp();
   const toast = useToast();
 
   const [items, setItems] = useState<InventoryOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [supplier, setSupplier] = useState('');
   const [orderReference, setOrderReference] = useState('');
   const [orderDate, setOrderDate] = useState(toDateInputValue(Date.now()));
   const [expectedDelivery, setExpectedDelivery] = useState('');
   const [notes, setNotes] = useState('');
+  const [approvedBy, setApprovedBy] = useState<string | null>(null);
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,14 +79,30 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
   useEffect(() => {
     if (!isOpen) return;
     setLoadingItems(true);
-    hailer!.insight.data(INSIGHT_INVENTORY, { update: true })
-      .then((data) => {
+    Promise.all([
+      hailer!.insight.data(INSIGHT_INVENTORY, { update: true }),
+      hailer!.user.list(),
+    ])
+      .then(([data, userRows]) => {
         const rows = parseInsight(data);
         setItems(rows.map((r) => ({ _id: r.id as string, name: r.name as string, sku: (r.sku as string) || null })));
+        setUsers((userRows as Array<{ _id: string; firstname?: string; lastname?: string }>).map((u) => ({
+          _id: u._id, name: `${u.firstname || ''} ${u.lastname || ''}`.trim() || u._id,
+        })));
         setLoadingItems(false);
       })
       .catch((err) => { setError(String(err)); setLoadingItems(false); });
   }, [isOpen, hailer]);
+
+  // The "Ordered" phase requires Approved By — money commits at that point, and this
+  // modal always creates straight into Ordered. Default to whoever's filling out the
+  // form (they're the one clicking "Create Order"), but leave it editable in case
+  // they're placing it on someone else's behalf.
+  useEffect(() => {
+    if (!isOpen) return;
+    setApprovedBy((prev) => prev ?? user.current?._id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, user.current]);
 
   // Seed from a Reorder shortcut. reset() already ran on the previous close (see handleClose),
   // so this always starts from a blank slate before applying the prefill — no stale carryover
@@ -108,6 +127,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
     setOrderDate(toDateInputValue(Date.now()));
     setExpectedDelivery('');
     setNotes('');
+    setApprovedBy(null);
     setLines([newLine()]);
     setError(null);
   }
@@ -124,11 +144,15 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
   async function handleSubmit() {
     if (!supplier.trim()) { setError('Supplier is required.'); return; }
     if (validLines.length === 0) { setError('Add at least one line item with a quantity.'); return; }
+    if (!approvedBy) { setError('Approved By is required — this order is created directly into Ordered, where money commits.'); return; }
 
     setSubmitting(true);
     setError(null);
     try {
-      const headerFields: Record<string, ActivityFieldValue> = { [PO_SUPPLIER]: supplier.trim() };
+      const headerFields: Record<string, ActivityFieldValue> = {
+        [PO_SUPPLIER]: supplier.trim(),
+        [PO_APPROVED_BY]: approvedBy,
+      };
       if (orderReference.trim()) headerFields[PO_ORDER_REFERENCE] = orderReference.trim();
       const orderMs = dateInputToMs(orderDate);
       if (orderMs) headerFields[PO_ORDER_DATE] = orderMs;
@@ -206,6 +230,16 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
                 <Input type="date" value={expectedDelivery} onChange={(e) => setExpectedDelivery(e.target.value)} />
               </FormControl>
             </HStack>
+
+            <FormControl isRequired>
+              <FormLabel fontSize="sm">Approved By</FormLabel>
+              <SearchableSelect
+                value={approvedBy}
+                onChange={(v) => setApprovedBy(v || null)}
+                options={users.map((u) => ({ _id: u._id, name: u.name }))}
+                placeholder="Search person..."
+              />
+            </FormControl>
 
             <Divider />
             <Text fontWeight="semibold" fontSize="sm">Line Items</Text>

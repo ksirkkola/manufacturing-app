@@ -16,6 +16,7 @@ export const PO_ORDER_REFERENCE = '6aa1180bed49dd631d4ffc6a';
 export const PO_ORDER_DATE = '6aa1180bed49dd631d4ffc6d';
 export const PO_EXPECTED_DELIVERY_DATE = '6aa1180bed49dd631d4ffc70';
 export const PO_NOTES = '6aa1180bed49dd631d4ffc73';
+export const PO_APPROVED_BY = '6aa7a713da23a46b38d33fea';
 
 // Incoming Stock Orders (header) phases
 export const PO_PHASE_DRAFT = '6aa117a20a9489432633a884';
