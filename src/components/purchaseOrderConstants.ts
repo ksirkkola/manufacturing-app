@@ -67,6 +67,7 @@ export interface PurchaseOrderRow {
   totalQtyOrdered: number | null;
   totalQtyReceived: number | null;
   totalOrderValue: number | null;
+  approvedBy: string | null;
 }
 
 export interface PurchaseOrderLineRow {

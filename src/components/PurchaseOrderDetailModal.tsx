@@ -8,7 +8,7 @@ import { ActivityFieldValue } from '@hailer/app-sdk';
 import { useApp } from '../hailer/use-app';
 import {
   PurchaseOrderRow, PurchaseOrderLineRow, parseInsight,
-  INSIGHT_PO_LINES, PO_PHASE_RECEIVED, PO_PHASE_PARTIALLY_RECEIVED,
+  INSIGHT_PO_LINES, PO_PHASE_RECEIVED, PO_PHASE_PARTIALLY_RECEIVED, PO_APPROVED_BY,
   POL_PHASE_RECEIVED, POL_QTY_RECEIVED,
   STOCK_TXN_WORKFLOW, STOCK_TXN_PHASE, STF_TYPE, STF_ITEM, STF_SKU, STF_QTY, STF_DIRECTION, STF_DATE,
   INV_FIELD_QTY,
@@ -35,7 +35,7 @@ interface Props {
 }
 
 export default function PurchaseOrderDetailModal({ order, onClose, onChanged }: Props) {
-  const { hailer } = useApp();
+  const { hailer, user } = useApp();
   const toast = useToast();
 
   const [lines, setLines] = useState<PurchaseOrderLineRow[]>([]);
@@ -103,15 +103,21 @@ export default function PurchaseOrderDetailModal({ order, onClose, onChanged }: 
         fields: { [POL_QTY_RECEIVED]: qty },
       }], {});
 
-      // 4. Roll the header phase forward based on remaining lines.
+      // 4. Roll the header phase forward based on remaining lines. Both Received and
+      // Partially Received require Approved By — if the order doesn't already have one
+      // (e.g. an older order from before that field existed), default to whoever's
+      // clicking Receive rather than letting this update throw and leave the header
+      // stuck in Ordered despite every line already being marked received.
       const updatedLines = lines.map((l) => (l.id === line.id ? { ...l, phase: 'Received', quantityReceived: qty } : l));
       const stillPending = updatedLines.some((l) => l.phase === 'Pending');
       const anyReceived = updatedLines.some((l) => l.phase === 'Received');
       if (order) {
+        const headerFields: Record<string, ActivityFieldValue> = {};
+        if (!order.approvedBy && user.current?._id) headerFields[PO_APPROVED_BY] = user.current._id;
         if (!stillPending && anyReceived) {
-          await hailer!.activity.update([{ _id: order.id, phaseId: PO_PHASE_RECEIVED }], {});
+          await hailer!.activity.update([{ _id: order.id, phaseId: PO_PHASE_RECEIVED, fields: headerFields }], {});
         } else if (anyReceived) {
-          await hailer!.activity.update([{ _id: order.id, phaseId: PO_PHASE_PARTIALLY_RECEIVED }], {});
+          await hailer!.activity.update([{ _id: order.id, phaseId: PO_PHASE_PARTIALLY_RECEIVED, fields: headerFields }], {});
         }
       }
 
