@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.28.0",
-  "versionDescription": "Trip parts now carry a cost. Parts added to a trip via + Add Part get their Unit Cost set from the inventory item's supplier price, and picking a trip part with no Unit Cost captures it then. This feeds the new Parts Used field and the TMXE Revenue after expenses calculation on the Trips / IHS ticket.",
+  "version": "1.28.1",
+  "versionDescription": "Parts Picking: when a trip part is marked Picked, its Unit Cost is now always set to the inventory item's supplier price (previously only when empty), so Picked parts always feed the trip's Parts Used and TMXE Revenue after expenses.",
   "config": {
     "fields": {}
   }

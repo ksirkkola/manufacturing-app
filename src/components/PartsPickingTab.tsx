@@ -306,10 +306,11 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             fields: { [INV_FIELD_QTY]: currentQty - needed },
           }], {});
 
-          // Trip parts: if the line has no Unit Cost yet (e.g. added directly in Hailer), capture the
-          // item's supplier price now so the trip's Parts Used / revenue-after-expenses include it.
+          // Trip parts: a Picked part's Unit Cost is the item's supplier price, captured at pick time, so
+          // the trip's Parts Used / TMXE Revenue after expenses include it (and later price changes
+          // don't rewrite what was actually picked).
           const price = Number((inv.fields as Record<string, unknown>)?.[INV_FIELD_SUPPLIER_PRICE]) || 0;
-          if (context === 'trip' && !Number(item.unitCost) && price > 0) {
+          if (context === 'trip' && price > 0 && Number(item.unitCost) !== price) {
             await hailer!.activity.update([{ _id: item.id, fields: { [LINE_FIELD_UNIT_COST]: price } }], {});
             capturedUnitCost = price;
           }
