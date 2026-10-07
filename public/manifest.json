@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.24.6",
-  "versionDescription": "Fixed a real bug behind 'all lines received but the order stays stuck in Ordered': the Receive button's header-rollup step moves the order to Received/Partially Received, but those phases also require Approved By \u2014 any order missing that field (e.g. older orders from before it existed) silently failed on that last step, even though inventory/line updates had already gone through. Now defaults Approved By to whoever clicks Receive if the order doesn't already have one set.",
+  "version": "1.25.0",
+  "versionDescription": "Parts Picking > Trips / IHS: replaced the trip dropdown with a list styled like Online Orders. Each open trip is a row (Code, Trip, Company, Status, Parts counts); click a row to expand its parts inline, several can be open at once. Closed trips are no longer listed.",
   "config": {
     "fields": {}
   }

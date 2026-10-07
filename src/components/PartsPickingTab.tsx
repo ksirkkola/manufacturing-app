@@ -4,7 +4,7 @@ import {
   Table, Tbody, Td, Text, Th, Thead, Tr, useColorModeValue,
   useToast, VStack, Alert, AlertIcon, Tabs, TabList, Tab, TabPanels, TabPanel,
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { fetchInsights } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
 import { HailerDocImage } from '../hailer/theme/icons/HailerDocImage';
@@ -85,6 +85,7 @@ interface LineItemRow {
 }
 
 interface Option { id: string; name: string; }
+interface TripOption { id: string; name: string; ticketCode: string | null; company: string | null; phase: string; }
 interface OnlineOrderOption {
   id: string; name: string; phase: string; orderNumber: string | null;
   orderDate: number | null; customerName: string | null;
@@ -112,6 +113,10 @@ const PHASE_COLOR: Record<string, string> = {
 const ONLINE_ORDER_PHASE_COLOR: Record<string, string> = {
   Pending: 'yellow', Picked: 'blue', Backordered: 'red', Fulfilled: 'green',
 };
+const TRIP_PHASE_COLOR: Record<string, string> = {
+  'Triage from Support Tickets': 'blue', 'Pre-Travel Activities': 'cyan', 'In Progress': 'green',
+  'Follow-Up Activities': 'purple', 'Waiting on PO': 'yellow', 'Waiting on Dates': 'orange',
+};
 const ONLINE_ORDER_PHASE_RANK: Record<string, number> = {
   Backordered: 0, Pending: 1, Picked: 2, Fulfilled: 3,
 };
@@ -128,10 +133,10 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
 
   const [lineItems, setLineItems]   = useState<LineItemRow[]>([]);
   const [workOrders, setWorkOrders] = useState<Option[]>([]);
-  const [trips, setTrips]           = useState<Option[]>([]);
+  const [trips, setTrips]           = useState<TripOption[]>([]);
   const [onlineOrders, setOnlineOrders] = useState<OnlineOrderOption[]>([]);
   const [selectedWO, setSelectedWO] = useState(selectedWorkOrderId || '');
-  const [selectedTrip, setSelectedTrip] = useState('');
+  const [expandedTrips, setExpandedTrips] = useState<Set<string>>(new Set());
   const [selectedOnlineOrder, setSelectedOnlineOrder] = useState('');
   // Sub-tab order: Online Orders, Trips / IHS, Work Orders — Work Orders is last, so jump to
   // index 2 when arriving here via "Pick Parts" from the Work Orders tab.
@@ -160,7 +165,10 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
       setWorkOrders(parseInsight(wos).map(r => ({ id: r.id as string, name: r.name as string })));
       setTrips(parseInsight(tripsData).map(r => ({
         id: r.id as string,
-        name: `${r.ticketCode || ''} — ${r.name || ''} (${r.company || ''})`.trim()
+        name: (r.name as string) || '',
+        ticketCode: (r.ticketCode as string) || null,
+        company: (r.company as string) || null,
+        phase: ((r.phase as string) || '').trim(),
       })));
       setOnlineOrders(parseInsight(onlineData).map(r => ({
         id: r.id as string,
@@ -231,7 +239,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     setUpdating(item.id);
     try {
       const workOrderId = context === 'wo'     ? selectedWO    : undefined;
-      const tripId       = context === 'trip'   ? selectedTrip  : undefined;
+      const tripId       = context === 'trip'   ? (item.trip || undefined) : undefined;
       const txnType      = context === 'trip'   ? 'Used on Trip'
                           : context === 'online' ? 'Sold (Online)'
                           : 'Used in Build';
@@ -395,8 +403,9 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   if (error)   return <Text color="red.500">Error: {error}</Text>;
 
   const woItems     = selectedWO           ? lineItems.filter(l => l.workOrder === selectedWO)           : [];
-  const tripItems   = selectedTrip         ? lineItems.filter(l => l.trip === selectedTrip)              : [];
   const onlineItems = selectedOnlineOrder  ? lineItems.filter(l => l.onlineOrder === selectedOnlineOrder) : [];
+  // Closed trips are done — nothing left to pick, so they're not listed at all.
+  const openTrips = trips.filter(t => t.phase !== 'Closed');
   const backorderedOnlineCount = lineItems.filter(l => l.onlineOrder && l.phase === 'Backordered').length;
   const selectedOnlineOrderData = onlineOrders.find(o => o.id === selectedOnlineOrder);
   const canMarkFulfilled = !!selectedOnlineOrderData
@@ -408,6 +417,58 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const closedOnlineOrders = onlineOrders
     .filter(o => o.phase === 'Fulfilled')
     .sort((a, b) => (b.shippedDate ?? b.orderDate ?? 0) - (a.shippedDate ?? a.orderDate ?? 0));
+
+  function toggleTrip(id: string) {
+    setExpandedTrips(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // One table row per trip (same look as the Online Orders list); clicking a row expands its
+  // parts list inline underneath, so several trips can be open at once.
+  function renderTripRow(t: TripOption) {
+    const items       = lineItems.filter(l => l.trip === t.id);
+    const pending     = items.filter(l => l.phase === 'Pending').length;
+    const picked      = items.filter(l => l.phase === 'Picked').length;
+    const backordered = items.filter(l => l.phase === 'Backordered').length;
+    const open        = expandedTrips.has(t.id);
+    return (
+      <Fragment key={t.id}>
+        <Tr
+          cursor="pointer"
+          bg={open ? greenRow : backordered > 0 ? redRow : undefined}
+          _hover={{ bg: rowHover }}
+          onClick={() => toggleTrip(t.id)}
+        >
+          <Td w="1%" px={2}>{open ? '▾' : '▸'}</Td>
+          <Td fontWeight="medium" whiteSpace="nowrap">{t.ticketCode || '—'}</Td>
+          <Td>{t.name || '—'}</Td>
+          <Td>{t.company || '—'}</Td>
+          <Td><Badge colorScheme={TRIP_PHASE_COLOR[t.phase] || 'gray'}>{t.phase || '—'}</Badge></Td>
+          <Td>
+            {items.length === 0 ? (
+              <Text fontSize="xs" color="gray.400">No parts</Text>
+            ) : (
+              <HStack spacing={2}>
+                {pending > 0     && <Badge colorScheme="yellow">{pending} Pending</Badge>}
+                {picked > 0      && <Badge colorScheme="green">{picked} Picked</Badge>}
+                {backordered > 0 && <Badge colorScheme="red">{backordered} Backordered</Badge>}
+              </HStack>
+            )}
+          </Td>
+        </Tr>
+        {open && (
+          <Tr>
+            <Td colSpan={6} p={4} borderBottom="1px" borderColor={borderColor}>
+              <PartsTable items={items} context="trip" />
+            </Td>
+          </Tr>
+        )}
+      </Fragment>
+    );
+  }
 
   return (
     <Box>
@@ -557,30 +618,33 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             )}
           </TabPanel>
 
-          {/* Trip picking */}
+          {/* Trip picking — open trips only (closed ones have nothing left to pick). Same
+              list style as Online Orders; click a trip to expand its parts. */}
           <TabPanel px={0}>
-            <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="md" p={4} mb={6}>
-              <HStack spacing={4} flexWrap="wrap">
-                <VStack align="start" spacing={1}>
-                  <Text fontSize="xs" color="gray.500">Trip / IHS</Text>
-                  <Select size="sm" minW="300px" value={selectedTrip} onChange={e => setSelectedTrip(e.target.value)}>
-                    <option value="">— Select a Trip —</option>
-                    {trips.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </Select>
-                </VStack>
-                {selectedTrip && (
-                  <HStack spacing={3} mt={4}>
-                    <Badge colorScheme="yellow" px={2} py={1}>{tripItems.filter(l => l.phase === 'Pending').length} Pending</Badge>
-                    <Badge colorScheme="green"  px={2} py={1}>{tripItems.filter(l => l.phase === 'Picked').length} Picked</Badge>
-                    <Badge colorScheme="red"    px={2} py={1}>{tripItems.filter(l => l.phase === 'Backordered').length} Backordered</Badge>
-                  </HStack>
-                )}
-              </HStack>
-            </Box>
-            {!selectedTrip ? (
-              <Text color="gray.500">Select a trip to see its parts list.</Text>
+            <HStack justify="space-between" mb={3}>
+              <Text fontSize="sm" color="gray.500">{openTrips.length} open trip{openTrips.length === 1 ? '' : 's'}</Text>
+            </HStack>
+
+            {openTrips.length === 0 ? (
+              <Text color="gray.500" mb={6}>No open trips.</Text>
             ) : (
-              <PartsTable items={tripItems} context="trip" />
+              <Box overflowX="auto" border="1px" borderColor={borderColor} borderRadius="md" mb={6}>
+                <Table variant="simple" size="sm">
+                  <Thead bg={theadBg}>
+                    <Tr>
+                      <Th w="1%"></Th>
+                      <Th>Code</Th>
+                      <Th>Trip</Th>
+                      <Th>Company</Th>
+                      <Th>Status</Th>
+                      <Th>Parts</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {openTrips.map(renderTripRow)}
+                  </Tbody>
+                </Table>
+              </Box>
             )}
           </TabPanel>
 
