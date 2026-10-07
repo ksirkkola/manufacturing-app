@@ -85,7 +85,7 @@ interface LineItemRow {
 }
 
 interface Option { id: string; name: string; }
-interface TripOption { id: string; name: string; ticketCode: string | null; company: string | null; phase: string; }
+interface TripOption { id: string; name: string; ticketCode: string | null; company: string | null; phase: string; year: string; }
 interface OnlineOrderOption {
   id: string; name: string; phase: string; orderNumber: string | null;
   orderDate: number | null; customerName: string | null;
@@ -97,6 +97,17 @@ interface OnlineOrderOption {
 function fmtOrderDate(sec: number | null): string {
   if (!sec) return '—';
   return new Date(sec * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Year a trip belongs to: its Year of Service field, else a leading year in its name
+// ("2026 Adidas Hotplates"), else the year it was created. Always a string so it can be a group key.
+function tripYear(r: Record<string, unknown>): string {
+  const yos = String(r.yearOfService ?? '').trim();
+  if (/^\d{4}$/.test(yos)) return yos;
+  const fromName = /^(20\d{2})\b/.exec(String(r.name ?? '').trim());
+  if (fromName) return fromName[1];
+  const created = Number(r.created);
+  return created ? String(new Date(created).getFullYear()) : 'Unknown';
 }
 
 function parseInsight(data: { headers: string[]; rows: unknown[][] }): Record<string, unknown>[] {
@@ -170,6 +181,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
         ticketCode: (r.ticketCode as string) || null,
         company: (r.company as string) || null,
         phase: ((r.phase as string) || '').trim(),
+        year: tripYear(r),
       })));
       setOnlineOrders(parseInsight(onlineData).map(r => ({
         id: r.id as string,
@@ -428,6 +440,41 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     });
   }
 
+  // Trip list table, grouped by year (newest first) with a header row per year.
+  function renderTripTable(list: TripOption[]) {
+    const years = Array.from(new Set(list.map(t => t.year)))
+      .sort((a, b) => (a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : Number(b) - Number(a)));
+    return (
+      <Table variant="simple" size="sm">
+        <Thead bg={theadBg}>
+          <Tr>
+            <Th w="1%"></Th>
+            <Th>Code</Th>
+            <Th>Trip</Th>
+            <Th>Company</Th>
+            <Th>Status</Th>
+            <Th>Parts</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {years.map(y => {
+            const group = list.filter(t => t.year === y);
+            return (
+              <Fragment key={y}>
+                <Tr bg={theadBg}>
+                  <Td colSpan={6} py={2} fontWeight="bold" fontSize="sm">
+                    {y} <Text as="span" fontWeight="normal" color="gray.500">({group.length})</Text>
+                  </Td>
+                </Tr>
+                {group.map(renderTripRow)}
+              </Fragment>
+            );
+          })}
+        </Tbody>
+      </Table>
+    );
+  }
+
   // One table row per trip (same look as the Online Orders list); clicking a row expands its
   // parts list inline underneath, so several trips can be open at once.
   function renderTripRow(t: TripOption) {
@@ -555,38 +602,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
                     <Text color="gray.500" px={4} pb={2}>No fulfilled orders yet.</Text>
                   ) : (
                     <Box overflowX="auto">
-                      <Table variant="simple" size="sm">
-                        <Thead bg={theadBg}>
-                          <Tr>
-                            <Th>Order #</Th>
-                            <Th>Client</Th>
-                            <Th>Destination</Th>
-                            <Th>Order Date</Th>
-                            <Th>Shipped</Th>
-                            <Th>Status</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {closedOnlineOrders.map(o => (
-                            <Tr
-                              key={o.id} cursor="pointer"
-                              bg={selectedOnlineOrder === o.id ? greenRow : undefined}
-                              _hover={{ bg: rowHover }}
-                              onClick={() => setSelectedOnlineOrder(o.id)}
-                            >
-                              <Td fontWeight="medium">{o.orderNumber ? `#${o.orderNumber}` : o.name}</Td>
-                              <Td>
-                                <Text>{o.clientCompanyName || '—'}</Text>
-                                {o.customerName && <Text fontSize="xs" color="gray.500">{o.customerName}</Text>}
-                              </Td>
-                              <Td>{o.destinationCountry || '—'}</Td>
-                              <Td whiteSpace="nowrap">{fmtOrderDate(o.orderDate)}</Td>
-                              <Td whiteSpace="nowrap">{fmtOrderDate(o.shippedDate)}</Td>
-                              <Td><Badge colorScheme={ONLINE_ORDER_PHASE_COLOR[o.phase] || 'gray'}>{o.phase}</Badge></Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
+                      {renderTripTable(closedTrips)}
                     </Box>
                   )}
                 </AccordionPanel>
@@ -634,21 +650,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
               <Text color="gray.500" mb={6}>No open trips.</Text>
             ) : (
               <Box overflowX="auto" border="1px" borderColor={borderColor} borderRadius="md" mb={6}>
-                <Table variant="simple" size="sm">
-                  <Thead bg={theadBg}>
-                    <Tr>
-                      <Th w="1%"></Th>
-                      <Th>Code</Th>
-                      <Th>Trip</Th>
-                      <Th>Company</Th>
-                      <Th>Status</Th>
-                      <Th>Parts</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {openTrips.map(renderTripRow)}
-                  </Tbody>
-                </Table>
+                {renderTripTable(openTrips)}
               </Box>
             )}
 
@@ -665,21 +667,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
                     <Text color="gray.500" px={4} pb={2}>No closed trips.</Text>
                   ) : (
                     <Box overflowX="auto">
-                      <Table variant="simple" size="sm">
-                        <Thead bg={theadBg}>
-                        <Tr>
-                          <Th w="1%"></Th>
-                          <Th>Code</Th>
-                          <Th>Trip</Th>
-                          <Th>Company</Th>
-                          <Th>Status</Th>
-                          <Th>Parts</Th>
-                        </Tr>
-                        </Thead>
-                        <Tbody>
-                          {closedTrips.map(renderTripRow)}
-                        </Tbody>
-                      </Table>
+                      {renderTripTable(closedTrips)}
                     </Box>
                   )}
                 </AccordionPanel>
