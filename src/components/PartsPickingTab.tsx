@@ -146,6 +146,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const [shippingOrder, setShippingOrder] = useState(false);
   const [showNewOnlineOrder, setShowNewOnlineOrder] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
+  const [addPartTrip, setAddPartTrip] = useState<TripOption | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
   const [error, setError]           = useState<string | null>(null);
 
@@ -323,7 +324,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     const backordered = items.filter(l => l.phase === 'Backordered').length;
     const allPicked   = items.length > 0 && pending === 0 && backordered === 0;
 
-    if (items.length === 0) return <Text color="gray.500" mt={4}>No line items. Add parts in the activity.</Text>;
+    if (items.length === 0) return <Text color="gray.500" mt={4}>{context === 'trip' ? 'No parts yet — click + Add Part.' : 'No line items. Add parts in the activity.'}</Text>;
 
     return (
       <>
@@ -404,8 +405,9 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
 
   const woItems     = selectedWO           ? lineItems.filter(l => l.workOrder === selectedWO)           : [];
   const onlineItems = selectedOnlineOrder  ? lineItems.filter(l => l.onlineOrder === selectedOnlineOrder) : [];
-  // Closed trips are done — nothing left to pick, so they're not listed at all.
-  const openTrips = trips.filter(t => t.phase !== 'Closed');
+  // Closed trips are tucked into a collapsed section below the working list, like Closed Orders.
+  const openTrips   = trips.filter(t => t.phase !== 'Closed');
+  const closedTrips = trips.filter(t => t.phase === 'Closed');
   const backorderedOnlineCount = lineItems.filter(l => l.onlineOrder && l.phase === 'Backordered').length;
   const selectedOnlineOrderData = onlineOrders.find(o => o.id === selectedOnlineOrder);
   const canMarkFulfilled = !!selectedOnlineOrderData
@@ -462,6 +464,9 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
         {open && (
           <Tr>
             <Td colSpan={6} p={4} borderBottom="1px" borderColor={borderColor}>
+              <HStack mb={3}>
+                <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setAddPartTrip(t)}>+ Add Part</Button>
+              </HStack>
               <PartsTable items={items} context="trip" />
             </Td>
           </Tr>
@@ -618,8 +623,8 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             )}
           </TabPanel>
 
-          {/* Trip picking — open trips only (closed ones have nothing left to pick). Same
-              list style as Online Orders; click a trip to expand its parts. */}
+          {/* Trip picking — same list style as Online Orders; click a trip to expand its parts.
+              Closed trips live in a collapsed accordion underneath. */}
           <TabPanel px={0}>
             <HStack justify="space-between" mb={3}>
               <Text fontSize="sm" color="gray.500">{openTrips.length} open trip{openTrips.length === 1 ? '' : 's'}</Text>
@@ -646,6 +651,40 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
                 </Table>
               </Box>
             )}
+
+            <Accordion allowToggle mb={6}>
+              <AccordionItem border="1px" borderColor={borderColor} borderRadius="md">
+                <AccordionButton>
+                  <Box flex="1" textAlign="left" fontSize="sm" fontWeight="medium">
+                    Closed Trips ({closedTrips.length})
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+                <AccordionPanel pb={2} px={0}>
+                  {closedTrips.length === 0 ? (
+                    <Text color="gray.500" px={4} pb={2}>No closed trips.</Text>
+                  ) : (
+                    <Box overflowX="auto">
+                      <Table variant="simple" size="sm">
+                        <Thead bg={theadBg}>
+                        <Tr>
+                          <Th w="1%"></Th>
+                          <Th>Code</Th>
+                          <Th>Trip</Th>
+                          <Th>Company</Th>
+                          <Th>Status</Th>
+                          <Th>Parts</Th>
+                        </Tr>
+                        </Thead>
+                        <Tbody>
+                          {closedTrips.map(renderTripRow)}
+                        </Tbody>
+                      </Table>
+                    </Box>
+                  )}
+                </AccordionPanel>
+              </AccordionItem>
+            </Accordion>
           </TabPanel>
 
           {/* Work Order picking */}
@@ -682,6 +721,16 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
         onClose={() => setShowNewOnlineOrder(false)}
         onSuccess={() => setLocalRefresh(k => k + 1)}
       />
+      {addPartTrip && (
+        <AddOrderLineModal
+          isOpen
+          context="trip"
+          onClose={() => setAddPartTrip(null)}
+          orderId={addPartTrip.id}
+          orderName={addPartTrip.ticketCode ? `${addPartTrip.ticketCode} — ${addPartTrip.name}` : addPartTrip.name}
+          onAdded={() => setLocalRefresh(k => k + 1)}
+        />
+      )}
       {selectedOnlineOrder && (
         <AddOrderLineModal
           isOpen={showAddItem}

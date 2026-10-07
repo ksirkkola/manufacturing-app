@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.25.0",
-  "versionDescription": "Parts Picking > Trips / IHS: replaced the trip dropdown with a list styled like Online Orders. Each open trip is a row (Code, Trip, Company, Status, Parts counts); click a row to expand its parts inline, several can be open at once. Closed trips are no longer listed.",
+  "version": "1.25.1",
+  "versionDescription": "Parts Picking > Trips / IHS: added a '+ Add Part' button inside each expanded trip so parts can be added right from Parts Picking (creates a Pending line linked to the trip, transaction type Used on Trip). Closed trips now sit in a collapsed 'Closed Trips (N)' accordion below the open list, like Closed Orders.",
   "config": {
     "fields": {}
   }
