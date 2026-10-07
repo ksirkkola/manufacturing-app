@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.27.0",
-  "versionDescription": "Parts Picking > Work Orders: same build as Trips / IHS. Dropdown removed; each work order is a row (Work Order, Type, Serial #, Customer, Status, Parts counts) grouped by year oldest first, click to expand its parts inline. Added '+ Add Part' and 'Pick List (PDF)' inside each expanded work order, a Complete Work Orders accordion, and a badge/notice on the sub-tab for work orders in Parts Sourcing. Arriving via Pick Parts on the Work Orders tab opens that work order automatically.",
+  "version": "1.28.0",
+  "versionDescription": "Trip parts now carry a cost. Parts added to a trip via + Add Part get their Unit Cost set from the inventory item's supplier price, and picking a trip part with no Unit Cost captures it then. This feeds the new Parts Used field and the TMXE Revenue after expenses calculation on the Trips / IHS ticket.",
   "config": {
     "fields": {}
   }

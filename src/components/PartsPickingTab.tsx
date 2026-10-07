@@ -49,6 +49,10 @@ const ONLINE_ORDER_PHASE_FULFILLED   = '6abd8aa029b00ac74d904ff2';
 
 // Inventory field + workflow
 const INV_FIELD_QTY = '6a0c251a19566c76c8492813';
+const INV_FIELD_SUPPLIER_PRICE = '6a0c276f19566c76c84935b1'; // "Supplier/MFG Price"
+
+// Work Order Line Item > Unit Cost (Line Total = qty x this; feeds the trip's Parts Used)
+const LINE_FIELD_UNIT_COST = '6a4c9ce502e498c78d7128e3';
 
 // Stock Transaction workflow + phase
 const STOCK_TXN_WORKFLOW = '6a4deba315df0324e505360c';
@@ -287,6 +291,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
 
       // 1. Move line item to Picked
       await hailer!.activity.update([{ _id: item.id, phaseId: PHASE_PICKED }], {});
+      let capturedUnitCost: number | null = null;
 
       // 2. Decrement inventory — allowed to go negative on purpose: a negative Quantity on Hand
       // is the visible "we sold more than we had" signal the Reorder Needed flag watches for.
@@ -300,13 +305,21 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             _id: item.inventoryItem,
             fields: { [INV_FIELD_QTY]: currentQty - needed },
           }], {});
+
+          // Trip parts: if the line has no Unit Cost yet (e.g. added directly in Hailer), capture the
+          // item's supplier price now so the trip's Parts Used / revenue-after-expenses include it.
+          const price = Number((inv.fields as Record<string, unknown>)?.[INV_FIELD_SUPPLIER_PRICE]) || 0;
+          if (context === 'trip' && !Number(item.unitCost) && price > 0) {
+            await hailer!.activity.update([{ _id: item.id, fields: { [LINE_FIELD_UNIT_COST]: price } }], {});
+            capturedUnitCost = price;
+          }
         }
       }
 
       // 3. Create stock transaction
       await createStockTransaction(item, txnType, workOrderId, tripId);
 
-      const next = lineItems.map(l => l.id === item.id ? { ...l, phase: 'Picked' } : l);
+      const next = lineItems.map(l => l.id === item.id ? { ...l, phase: 'Picked', ...(capturedUnitCost ? { unitCost: capturedUnitCost } : {}) } : l);
       setLineItems(next);
       if (context === 'online' && item.onlineOrder) await syncOnlineOrderPhase(item.onlineOrder, next);
       toast({ title: 'Marked as Picked', description: 'Inventory updated & transaction recorded', status: 'success', duration: 2000, isClosable: true });

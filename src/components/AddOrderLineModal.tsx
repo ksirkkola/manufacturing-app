@@ -22,6 +22,7 @@ const WOLI_TRANSACTION_TYPE = '6a4deba698370c6b89ab6417';
 const WOLI_ONLINE_ORDER     = '6abd8ad598f64e0d2f10d7c9';
 const WOLI_TRIP             = '6a4deba698370c6b89ab6414';
 const WOLI_WORK_ORDER       = '6a4c9ce502e498c78d7128bd';
+const WOLI_UNIT_COST        = '6a4c9ce502e498c78d7128e3';
 
 // Which link field + Transaction Type a new line gets, depending on what it's being added to.
 export type LineContext = 'online' | 'trip' | 'wo';
@@ -31,7 +32,7 @@ const CONTEXT_CONFIG: Record<LineContext, { linkField: string; transactionType: 
   wo:     { linkField: WOLI_WORK_ORDER,   transactionType: 'Used in Build' },
 };
 
-interface InventoryOption { _id: string; name: string; sku: string | null; }
+interface InventoryOption { _id: string; name: string; sku: string | null; supplierPrice: number | null; }
 
 function parseInsight(data: { headers: string[]; rows: unknown[][] }): Record<string, unknown>[] {
   return data.rows.map((row) => {
@@ -71,7 +72,7 @@ export default function AddOrderLineModal({ isOpen, onClose, orderId, orderName,
     hailer!.insight.data(INSIGHT_INVENTORY, { update: true })
       .then((data) => {
         const rows = parseInsight(data);
-        setItems(rows.map((r) => ({ _id: r.id as string, name: r.name as string, sku: (r.sku as string) || null })));
+        setItems(rows.map((r) => ({ _id: r.id as string, name: r.name as string, sku: (r.sku as string) || null, supplierPrice: Number(r.supplierPrice) || null })));
         setLoadingItems(false);
       })
       .catch((err) => { setError(String(err)); setLoadingItems(false); });
@@ -99,6 +100,9 @@ export default function AddOrderLineModal({ isOpen, onClose, orderId, orderName,
         [WOLI_TRANSACTION_TYPE]: cfg.transactionType,
       };
       if (item?.sku) fields[WOLI_PART_NUMBER] = item.sku;
+      // Trip parts feed the trip's 'Parts Used' and 'TMXE Revenue after expenses' totals (via Line Total =
+      // qty x Unit Cost), so copy the item's current supplier price onto the line as its Unit Cost.
+      if (context === 'trip' && item?.supplierPrice) fields[WOLI_UNIT_COST] = item.supplierPrice;
 
       await hailer!.activity.create(WO_LINE_ITEM_WORKFLOW, [{
         name: `${item?.sku || item?.name || 'Line'} — ${quantity}`,
