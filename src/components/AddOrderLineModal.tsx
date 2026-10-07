@@ -9,7 +9,7 @@ import { useApp } from '../hailer/use-app';
 import SearchableSelect from './SearchableSelect';
 import { INSIGHT_INVENTORY } from './purchaseOrderConstants';
 
-// Add a line item to an EXISTING Online Order or Trip / IHS — for when something was missed on the initial
+// Add a line item to an EXISTING Online Order, Trip / IHS or Work Order — for when something was missed on the initial
 // upload, or the customer called in to add to their order. Creates one more Work Order Line
 // Item (Pending, linked via Online Order) at a time, so it works like a quick "scan and add"
 // tool while someone's packing rather than a full re-edit of the order.
@@ -21,12 +21,14 @@ const WOLI_QTY_REQUIRED     = '6a4c9ce502e498c78d7128d9';
 const WOLI_TRANSACTION_TYPE = '6a4deba698370c6b89ab6417';
 const WOLI_ONLINE_ORDER     = '6abd8ad598f64e0d2f10d7c9';
 const WOLI_TRIP             = '6a4deba698370c6b89ab6414';
+const WOLI_WORK_ORDER       = '6a4c9ce502e498c78d7128bd';
 
 // Which link field + Transaction Type a new line gets, depending on what it's being added to.
-export type LineContext = 'online' | 'trip';
+export type LineContext = 'online' | 'trip' | 'wo';
 const CONTEXT_CONFIG: Record<LineContext, { linkField: string; transactionType: string }> = {
   online: { linkField: WOLI_ONLINE_ORDER, transactionType: 'Sold (Online)' },
   trip:   { linkField: WOLI_TRIP,         transactionType: 'Used on Trip' },
+  wo:     { linkField: WOLI_WORK_ORDER,   transactionType: 'Used in Build' },
 };
 
 interface InventoryOption { _id: string; name: string; sku: string | null; }
@@ -45,7 +47,7 @@ interface Props {
   orderId: string;
   orderName: string;
   onAdded: () => void;
-  // Defaults to 'online' (the original use). 'trip' links the new line to a Trip / IHS instead.
+  // Defaults to 'online' (the original use). 'trip' / 'wo' link the new line to a Trip / IHS or Work Order.
   context?: LineContext;
 }
 

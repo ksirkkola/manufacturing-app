@@ -1,4 +1,4 @@
-// Builds a printable pick list PDF for one Trip / IHS, to be packed in the box for the client.
+// Builds a printable pick list PDF for one Trip / IHS or Work Order, to be packed in the box for the client.
 // Generated in the browser (jsPDF) from the line items already loaded in the Parts Picking tab —
 // no server round trip. Loaded lazily so the PDF library only downloads when someone clicks it.
 
@@ -18,6 +18,8 @@ export interface PickListTrip {
   company: string | null;
   year: string;
   phase: string;
+  // Extra header facts, e.g. serial number / build type for a Work Order.
+  extra?: string[];
 }
 
 function safeFilePart(s: string): string {
@@ -43,6 +45,7 @@ export async function downloadTripPickList(trip: PickListTrip, lines: PickListLi
   doc.setFontSize(10);
   const meta: string[] = [];
   if (trip.company) meta.push(`Client: ${trip.company}`);
+  if (trip.extra) meta.push(...trip.extra);
   if (trip.year && trip.year !== 'Unknown') meta.push(`Year: ${trip.year}`);
   if (trip.phase) meta.push(`Status: ${trip.phase}`);
   doc.text(meta.join('   |   '), margin, 90);
@@ -88,6 +91,6 @@ export async function downloadTripPickList(trip: PickListTrip, lines: PickListLi
     },
   });
 
-  const name = ['PickList', trip.ticketCode, trip.company].filter(Boolean).map(p => safeFilePart(String(p))).join('_');
+  const name = ['PickList', trip.ticketCode || trip.name, trip.company].filter(Boolean).map(p => safeFilePart(String(p))).join('_');
   doc.save(`${name || 'PickList'}.pdf`);
 }

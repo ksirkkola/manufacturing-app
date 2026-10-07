@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.26.0",
-  "versionDescription": "Parts Picking > Trips / IHS: (1) years now run oldest first (2026, 2027, 2028), Unknown last. (2) New 'Pick List (PDF)' button inside each expanded trip downloads a printable pick list (part number, bin, description, qty, tick box) sorted by bin location, to put in the client's box. (3) The Trips / IHS sub-tab now shows a badge, and a notice inside, with the number of trips in Pre-Travel Activities, like the Online Orders badge.",
+  "version": "1.27.0",
+  "versionDescription": "Parts Picking > Work Orders: same build as Trips / IHS. Dropdown removed; each work order is a row (Work Order, Type, Serial #, Customer, Status, Parts counts) grouped by year oldest first, click to expand its parts inline. Added '+ Add Part' and 'Pick List (PDF)' inside each expanded work order, a Complete Work Orders accordion, and a badge/notice on the sub-tab for work orders in Parts Sourcing. Arriving via Pick Parts on the Work Orders tab opens that work order automatically.",
   "config": {
     "fields": {}
   }

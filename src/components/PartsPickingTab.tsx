@@ -1,8 +1,8 @@
 import {
   Accordion, AccordionButton, AccordionIcon, AccordionItem, AccordionPanel,
-  Box, Badge, Button, Center, Flex, Heading, HStack, Icon, Image, Select, Spinner,
+  Box, Badge, Button, Center, Flex, Heading, HStack, Icon, Image, Spinner,
   Table, Tbody, Td, Text, Th, Thead, Tr, useColorModeValue,
-  useToast, VStack, Alert, AlertIcon, Tabs, TabList, Tab, TabPanels, TabPanel,
+  useToast, Alert, AlertIcon, Tabs, TabList, Tab, TabPanels, TabPanel,
 } from '@chakra-ui/react';
 import { Fragment, useEffect, useState } from 'react';
 import { fetchInsights } from '../hailer/insight-queue';
@@ -30,7 +30,9 @@ function imageUrl(fileId: string): string {
 }
 
 const INSIGHT_LINE_ITEMS   = '6a4dddd2fd36d690158cc19b';
-const INSIGHT_WORK_ORDERS  = '6a4ddad5d9b751c8857618a6';
+// Own insight for this tab (all phases + date columns) — the shared 'SupportDashboard - Work Orders'
+// one has no dates and is used by another app, so it's left alone.
+const INSIGHT_WORK_ORDERS  = '6ac5d933a33cf660d603a867';
 const INSIGHT_TRIPS        = '6a4dec164d698d6a7fd73078';
 const INSIGHT_ONLINE_ORDERS = '6abd8b4529b00ac74d9065c1';
 
@@ -85,7 +87,7 @@ interface LineItemRow {
   invBinLocation: string | null;
 }
 
-interface Option { id: string; name: string; }
+interface WorkOrderOption { id: string; name: string; phase: string; buildType: string | null; productType: string | null; serialNumber: string | null; customer: string | null; year: string; }
 interface TripOption { id: string; name: string; ticketCode: string | null; company: string | null; phase: string; year: string; }
 interface OnlineOrderOption {
   id: string; name: string; phase: string; orderNumber: string | null;
@@ -111,6 +113,14 @@ function tripYear(r: Record<string, unknown>): string {
   return created ? String(new Date(created).getFullYear()) : 'Unknown';
 }
 
+// Work Order year: Date Received (custom date fields come back in SECONDS), else the year it was created.
+function workOrderYear(r: Record<string, unknown>): string {
+  const received = Number(r.dateReceived);
+  if (received) return String(new Date(received * 1000).getFullYear());
+  const created = Number(r.created);
+  return created ? String(new Date(created).getFullYear()) : 'Unknown';
+}
+
 function parseInsight(data: { headers: string[]; rows: unknown[][] }): Record<string, unknown>[] {
   return data.rows.map(row => {
     const r: Record<string, unknown> = {};
@@ -124,6 +134,10 @@ const PHASE_COLOR: Record<string, string> = {
 };
 const ONLINE_ORDER_PHASE_COLOR: Record<string, string> = {
   Pending: 'yellow', Picked: 'blue', Backordered: 'red', Fulfilled: 'green',
+};
+const WO_PHASE_COLOR: Record<string, string> = {
+  'New': 'blue', 'Parts Sourcing': 'cyan', 'Assembly': 'purple', 'QC / Testing': 'orange',
+  'Ready to Ship': 'green', 'Shipped': 'green', 'Complete': 'gray', 'On Hold': 'yellow', 'Sent Out for Repair': 'orange',
 };
 const TRIP_PHASE_COLOR: Record<string, string> = {
   'Triage from Support Tickets': 'blue', 'Pre-Travel Activities': 'cyan', 'In Progress': 'green',
@@ -144,10 +158,11 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const toast = useToast();
 
   const [lineItems, setLineItems]   = useState<LineItemRow[]>([]);
-  const [workOrders, setWorkOrders] = useState<Option[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
   const [trips, setTrips]           = useState<TripOption[]>([]);
   const [onlineOrders, setOnlineOrders] = useState<OnlineOrderOption[]>([]);
-  const [selectedWO, setSelectedWO] = useState(selectedWorkOrderId || '');
+  const [expandedWOs, setExpandedWOs] = useState<Set<string>>(new Set());
+  const [addPartWO, setAddPartWO] = useState<WorkOrderOption | null>(null);
   const [expandedTrips, setExpandedTrips] = useState<Set<string>>(new Set());
   const [selectedOnlineOrder, setSelectedOnlineOrder] = useState('');
   // Sub-tab order: Online Orders, Trips / IHS, Work Orders — Work Orders is last, so jump to
@@ -163,7 +178,6 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const [localRefresh, setLocalRefresh] = useState(0);
   const [error, setError]           = useState<string | null>(null);
 
-  const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const theadBg     = useColorModeValue('gray.50', 'gray.800');
   const rowHover    = useColorModeValue('gray.50', 'gray.600');
@@ -176,7 +190,16 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     fetchInsights(hailer!, [INSIGHT_LINE_ITEMS, INSIGHT_WORK_ORDERS, INSIGHT_TRIPS, INSIGHT_ONLINE_ORDERS])
     .then(([items, wos, tripsData, onlineData]) => {
       setLineItems(parseInsight(items) as unknown as LineItemRow[]);
-      setWorkOrders(parseInsight(wos).map(r => ({ id: r.id as string, name: r.name as string })));
+      setWorkOrders(parseInsight(wos).map(r => ({
+        id: r.id as string,
+        name: (r.name as string) || '',
+        phase: ((r.phase as string) || '').trim(),
+        buildType: (r.buildType as string) || null,
+        productType: (r.productType as string) || null,
+        serialNumber: (r.serialNumber as string) || null,
+        customer: (r.customer as string) || null,
+        year: workOrderYear(r),
+      })));
       setTrips(parseInsight(tripsData).map(r => ({
         id: r.id as string,
         name: (r.name as string) || '',
@@ -196,13 +219,16 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
         destinationCountry: (r.destinationCountry as string) || null,
         shippedDate: (r.shippedDate as number) || null,
       })));
-      if (selectedWorkOrderId) { setSelectedWO(selectedWorkOrderId); setInnerTabIndex(2); }
       setLoading(false);
     }).catch(err => { setError(String(err)); setLoading(false); });
   }, [inside, refreshKey, localRefresh]);
 
   useEffect(() => {
-    if (selectedWorkOrderId) { setSelectedWO(selectedWorkOrderId); setInnerTabIndex(2); }
+    // Arriving via "Pick Parts" on the Work Orders tab: jump to this sub-tab and open that work order.
+    if (selectedWorkOrderId) {
+      setInnerTabIndex(2);
+      setExpandedWOs(prev => new Set(prev).add(selectedWorkOrderId));
+    }
   }, [selectedWorkOrderId]);
 
   async function createStockTransaction(item: LineItemRow, type: string, workOrderId?: string, tripId?: string) {
@@ -253,7 +279,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   async function markPicked(item: LineItemRow, context: 'wo' | 'trip' | 'online') {
     setUpdating(item.id);
     try {
-      const workOrderId = context === 'wo'     ? selectedWO    : undefined;
+      const workOrderId = context === 'wo'     ? (item.workOrder || undefined) : undefined;
       const tripId       = context === 'trip'   ? (item.trip || undefined) : undefined;
       const txnType      = context === 'trip'   ? 'Used on Trip'
                           : context === 'online' ? 'Sold (Online)'
@@ -417,11 +443,13 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   if (loading) return <Flex justify="center" align="center" h="300px"><Spinner size="xl" /></Flex>;
   if (error)   return <Text color="red.500">Error: {error}</Text>;
 
-  const woItems     = selectedWO           ? lineItems.filter(l => l.workOrder === selectedWO)           : [];
   const onlineItems = selectedOnlineOrder  ? lineItems.filter(l => l.onlineOrder === selectedOnlineOrder) : [];
   // Closed trips are tucked into a collapsed section below the working list, like Closed Orders.
   const openTrips   = trips.filter(t => t.phase !== 'Closed');
   const closedTrips = trips.filter(t => t.phase === 'Closed');
+  const openWOs   = workOrders.filter(w => w.phase !== 'Complete');
+  const closedWOs = workOrders.filter(w => w.phase === 'Complete');
+  const partsSourcingCount = openWOs.filter(w => w.phase === 'Parts Sourcing').length;
   const preTravelCount = openTrips.filter(t => t.phase === 'Pre-Travel Activities').length;
   const backorderedOnlineCount = lineItems.filter(l => l.onlineOrder && l.phase === 'Backordered').length;
   const selectedOnlineOrderData = onlineOrders.find(o => o.id === selectedOnlineOrder);
@@ -451,6 +479,114 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+
+  async function downloadWOPickList(w: WorkOrderOption) {
+    setPickListBusy(w.id);
+    try {
+      await downloadTripPickList(
+        {
+          ticketCode: null, name: w.name, company: w.customer, year: w.year, phase: w.phase,
+          extra: [w.serialNumber ? `Serial: ${w.serialNumber}` : '', [w.buildType, w.productType].filter(Boolean).join(' ')].filter(Boolean),
+        },
+        lineItems.filter(l => l.workOrder === w.id),
+      );
+    } catch (err) {
+      toast({ title: 'Could not create pick list', description: String(err), status: 'error', duration: 4000, isClosable: true });
+    }
+    setPickListBusy(null);
+  }
+
+  function toggleWO(id: string) {
+    setExpandedWOs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Work Order list table, grouped by year like trips (oldest first, Unknown last).
+  function renderWOTable(list: WorkOrderOption[]) {
+    const years = Array.from(new Set(list.map(w => w.year)))
+      .sort((a, b) => (a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : Number(a) - Number(b)));
+    return (
+      <Table variant="simple" size="sm">
+        <Thead bg={theadBg}>
+          <Tr>
+            <Th w="1%"></Th>
+            <Th>Work Order</Th>
+            <Th>Type</Th>
+            <Th>Serial #</Th>
+            <Th>Customer</Th>
+            <Th>Status</Th>
+            <Th>Parts</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {years.map(y => {
+            const group = list.filter(w => w.year === y);
+            return (
+              <Fragment key={y}>
+                <Tr bg={theadBg}>
+                  <Td colSpan={7} py={2} fontWeight="bold" fontSize="sm">
+                    {y} <Text as="span" fontWeight="normal" color="gray.500">({group.length})</Text>
+                  </Td>
+                </Tr>
+                {group.map(renderWORow)}
+              </Fragment>
+            );
+          })}
+        </Tbody>
+      </Table>
+    );
+  }
+
+  function renderWORow(w: WorkOrderOption) {
+    const items       = lineItems.filter(l => l.workOrder === w.id);
+    const pending     = items.filter(l => l.phase === 'Pending').length;
+    const picked      = items.filter(l => l.phase === 'Picked').length;
+    const backordered = items.filter(l => l.phase === 'Backordered').length;
+    const open        = expandedWOs.has(w.id);
+    return (
+      <Fragment key={w.id}>
+        <Tr
+          cursor="pointer"
+          bg={open ? greenRow : backordered > 0 ? redRow : undefined}
+          _hover={{ bg: rowHover }}
+          onClick={() => toggleWO(w.id)}
+        >
+          <Td w="1%" px={2}>{open ? '▾' : '▸'}</Td>
+          <Td fontWeight="medium">{w.name || '—'}</Td>
+          <Td>{[w.buildType, w.productType].filter(Boolean).join(' · ') || '—'}</Td>
+          <Td whiteSpace="nowrap">{w.serialNumber || '—'}</Td>
+          <Td>{w.customer || '—'}</Td>
+          <Td><Badge colorScheme={WO_PHASE_COLOR[w.phase] || 'gray'}>{w.phase || '—'}</Badge></Td>
+          <Td>
+            {items.length === 0 ? (
+              <Text fontSize="xs" color="gray.400">No parts</Text>
+            ) : (
+              <HStack spacing={2}>
+                {pending > 0     && <Badge colorScheme="yellow">{pending} Pending</Badge>}
+                {picked > 0      && <Badge colorScheme="green">{picked} Picked</Badge>}
+                {backordered > 0 && <Badge colorScheme="red">{backordered} Backordered</Badge>}
+              </HStack>
+            )}
+          </Td>
+        </Tr>
+        {open && (
+          <Tr>
+            <Td colSpan={7} p={4} borderBottom="1px" borderColor={borderColor}>
+              <HStack mb={3}>
+                <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setAddPartWO(w)}>+ Add Part</Button>
+                <Button size="xs" variant="outline" isDisabled={items.length === 0} isLoading={pickListBusy === w.id}
+                  onClick={() => downloadWOPickList(w)}>⬇ Pick List (PDF)</Button>
+              </HStack>
+              <PartsTable items={items} context="wo" />
+            </Td>
+          </Tr>
+        )}
+      </Fragment>
+    );
   }
 
   // Trip list table, grouped by year (oldest first, Unknown last) with a header row per year.
@@ -557,7 +693,14 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
               </Badge>
             )}
           </Tab>
-          <Tab>Work Orders</Tab>
+          <Tab>
+            Work Orders
+            {partsSourcingCount > 0 && (
+              <Badge ml={2} colorScheme="cyan" fontSize="xs" title="Work orders in Parts Sourcing">
+                {partsSourcingCount}
+              </Badge>
+            )}
+          </Tab>
         </TabList>
 
         <TabPanels>
@@ -703,31 +846,46 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             </Accordion>
           </TabPanel>
 
-          {/* Work Order picking */}
+          {/* Work Order picking — same list style as Trips / Online Orders; click a work order to
+              expand its parts. Complete work orders live in a collapsed accordion underneath. */}
           <TabPanel px={0}>
-            <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="md" p={4} mb={6}>
-              <HStack spacing={4} flexWrap="wrap">
-                <VStack align="start" spacing={1}>
-                  <Text fontSize="xs" color="gray.500">Work Order</Text>
-                  <Select size="sm" minW="300px" value={selectedWO} onChange={e => setSelectedWO(e.target.value)}>
-                    <option value="">— Select a Work Order —</option>
-                    {workOrders.map(wo => <option key={wo.id} value={wo.id}>{wo.name}</option>)}
-                  </Select>
-                </VStack>
-                {selectedWO && (
-                  <HStack spacing={3} mt={4}>
-                    <Badge colorScheme="yellow" px={2} py={1}>{woItems.filter(l => l.phase === 'Pending').length} Pending</Badge>
-                    <Badge colorScheme="green"  px={2} py={1}>{woItems.filter(l => l.phase === 'Picked').length} Picked</Badge>
-                    <Badge colorScheme="red"    px={2} py={1}>{woItems.filter(l => l.phase === 'Backordered').length} Backordered</Badge>
-                  </HStack>
-                )}
-              </HStack>
-            </Box>
-            {!selectedWO ? (
-              <Text color="gray.500">Select a work order to see its parts list.</Text>
-            ) : (
-              <PartsTable items={woItems} context="wo" />
+            <HStack justify="space-between" mb={3}>
+              <Text fontSize="sm" color="gray.500">{openWOs.length} open work order{openWOs.length === 1 ? '' : 's'}</Text>
+            </HStack>
+            {partsSourcingCount > 0 && (
+              <Alert status="info" borderRadius="md" mb={4} fontSize="sm">
+                <AlertIcon />
+                {partsSourcingCount} work order{partsSourcingCount === 1 ? '' : 's'} in Parts Sourcing — parts need to be picked.
+              </Alert>
             )}
+
+            {openWOs.length === 0 ? (
+              <Text color="gray.500" mb={6}>No open work orders.</Text>
+            ) : (
+              <Box overflowX="auto" border="1px" borderColor={borderColor} borderRadius="md" mb={6}>
+                {renderWOTable(openWOs)}
+              </Box>
+            )}
+
+            <Accordion allowToggle mb={6}>
+              <AccordionItem border="1px" borderColor={borderColor} borderRadius="md">
+                <AccordionButton>
+                  <Box flex="1" textAlign="left" fontSize="sm" fontWeight="medium">
+                    Complete Work Orders ({closedWOs.length})
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+                <AccordionPanel pb={2} px={0}>
+                  {closedWOs.length === 0 ? (
+                    <Text color="gray.500" px={4} pb={2}>No completed work orders.</Text>
+                  ) : (
+                    <Box overflowX="auto">
+                      {renderWOTable(closedWOs)}
+                    </Box>
+                  )}
+                </AccordionPanel>
+              </AccordionItem>
+            </Accordion>
           </TabPanel>
         </TabPanels>
       </Tabs>
@@ -737,6 +895,16 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
         onClose={() => setShowNewOnlineOrder(false)}
         onSuccess={() => setLocalRefresh(k => k + 1)}
       />
+      {addPartWO && (
+        <AddOrderLineModal
+          isOpen
+          context="wo"
+          onClose={() => setAddPartWO(null)}
+          orderId={addPartWO.id}
+          orderName={addPartWO.name}
+          onAdded={() => setLocalRefresh(k => k + 1)}
+        />
+      )}
       {addPartTrip && (
         <AddOrderLineModal
           isOpen
