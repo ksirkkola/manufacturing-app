@@ -781,7 +781,38 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
                     <Text color="gray.500" px={4} pb={2}>No fulfilled orders yet.</Text>
                   ) : (
                     <Box overflowX="auto">
-                      {renderTripTable(closedTrips)}
+                      <Table variant="simple" size="sm">
+                        <Thead bg={theadBg}>
+                          <Tr>
+                            <Th>Order #</Th>
+                            <Th>Client</Th>
+                            <Th>Destination</Th>
+                            <Th>Order Date</Th>
+                            <Th>Shipped</Th>
+                            <Th>Status</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {closedOnlineOrders.map(o => (
+                            <Tr
+                              key={o.id} cursor="pointer"
+                              bg={selectedOnlineOrder === o.id ? greenRow : undefined}
+                              _hover={{ bg: rowHover }}
+                              onClick={() => setSelectedOnlineOrder(o.id)}
+                            >
+                              <Td fontWeight="medium">{o.orderNumber ? `#${o.orderNumber}` : o.name}</Td>
+                              <Td>
+                                <Text>{o.clientCompanyName || '—'}</Text>
+                                {o.customerName && <Text fontSize="xs" color="gray.500">{o.customerName}</Text>}
+                              </Td>
+                              <Td>{o.destinationCountry || '—'}</Td>
+                              <Td whiteSpace="nowrap">{fmtOrderDate(o.orderDate)}</Td>
+                              <Td whiteSpace="nowrap">{fmtOrderDate(o.shippedDate)}</Td>
+                              <Td><Badge colorScheme={ONLINE_ORDER_PHASE_COLOR[o.phase] || 'gray'}>{o.phase}</Badge></Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
                     </Box>
                   )}
                 </AccordionPanel>
