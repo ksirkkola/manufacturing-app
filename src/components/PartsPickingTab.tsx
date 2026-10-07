@@ -11,6 +11,7 @@ import { HailerDocImage } from '../hailer/theme/icons/HailerDocImage';
 import NewOnlineOrderModal from './NewOnlineOrderModal';
 import AddOrderLineModal from './AddOrderLineModal';
 import OnlineOrderDetailsCard from './OnlineOrderDetailsCard';
+import { downloadTripPickList } from './tripPickListPdf';
 
 // File-modifier fields store a JSON-stringified array of file IDs.
 function firstFileId(raw: unknown): string | undefined {
@@ -158,6 +159,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const [showNewOnlineOrder, setShowNewOnlineOrder] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
   const [addPartTrip, setAddPartTrip] = useState<TripOption | null>(null);
+  const [pickListBusy, setPickListBusy] = useState<string | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
   const [error, setError]           = useState<string | null>(null);
 
@@ -420,6 +422,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   // Closed trips are tucked into a collapsed section below the working list, like Closed Orders.
   const openTrips   = trips.filter(t => t.phase !== 'Closed');
   const closedTrips = trips.filter(t => t.phase === 'Closed');
+  const preTravelCount = openTrips.filter(t => t.phase === 'Pre-Travel Activities').length;
   const backorderedOnlineCount = lineItems.filter(l => l.onlineOrder && l.phase === 'Backordered').length;
   const selectedOnlineOrderData = onlineOrders.find(o => o.id === selectedOnlineOrder);
   const canMarkFulfilled = !!selectedOnlineOrderData
@@ -432,6 +435,16 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     .filter(o => o.phase === 'Fulfilled')
     .sort((a, b) => (b.shippedDate ?? b.orderDate ?? 0) - (a.shippedDate ?? a.orderDate ?? 0));
 
+  async function downloadPickList(t: TripOption) {
+    setPickListBusy(t.id);
+    try {
+      await downloadTripPickList(t, lineItems.filter(l => l.trip === t.id));
+    } catch (err) {
+      toast({ title: 'Could not create pick list', description: String(err), status: 'error', duration: 4000, isClosable: true });
+    }
+    setPickListBusy(null);
+  }
+
   function toggleTrip(id: string) {
     setExpandedTrips(prev => {
       const next = new Set(prev);
@@ -440,10 +453,10 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     });
   }
 
-  // Trip list table, grouped by year (newest first) with a header row per year.
+  // Trip list table, grouped by year (oldest first, Unknown last) with a header row per year.
   function renderTripTable(list: TripOption[]) {
     const years = Array.from(new Set(list.map(t => t.year)))
-      .sort((a, b) => (a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : Number(b) - Number(a)));
+      .sort((a, b) => (a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : Number(a) - Number(b)));
     return (
       <Table variant="simple" size="sm">
         <Thead bg={theadBg}>
@@ -513,6 +526,8 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             <Td colSpan={6} p={4} borderBottom="1px" borderColor={borderColor}>
               <HStack mb={3}>
                 <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setAddPartTrip(t)}>+ Add Part</Button>
+                <Button size="xs" variant="outline" isDisabled={items.length === 0} isLoading={pickListBusy === t.id}
+                  onClick={() => downloadPickList(t)}>⬇ Pick List (PDF)</Button>
               </HStack>
               <PartsTable items={items} context="trip" />
             </Td>
@@ -534,7 +549,14 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
               </Badge>
             )}
           </Tab>
-          <Tab>Trips / IHS</Tab>
+          <Tab>
+            Trips / IHS
+            {preTravelCount > 0 && (
+              <Badge ml={2} colorScheme="cyan" fontSize="xs" title="Trips in Pre-Travel Activities">
+                {preTravelCount}
+              </Badge>
+            )}
+          </Tab>
           <Tab>Work Orders</Tab>
         </TabList>
 
@@ -645,6 +667,12 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             <HStack justify="space-between" mb={3}>
               <Text fontSize="sm" color="gray.500">{openTrips.length} open trip{openTrips.length === 1 ? '' : 's'}</Text>
             </HStack>
+            {preTravelCount > 0 && (
+              <Alert status="info" borderRadius="md" mb={4} fontSize="sm">
+                <AlertIcon />
+                {preTravelCount} trip{preTravelCount === 1 ? '' : 's'} in Pre-Travel Activities — parts need to be picked and packed.
+              </Alert>
+            )}
 
             {openTrips.length === 0 ? (
               <Text color="gray.500" mb={6}>No open trips.</Text>
