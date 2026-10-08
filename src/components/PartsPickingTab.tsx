@@ -141,7 +141,7 @@ const ONLINE_ORDER_PHASE_COLOR: Record<string, string> = {
   Pending: 'yellow', Picked: 'blue', Backordered: 'red', Fulfilled: 'green',
 };
 const WO_PHASE_COLOR: Record<string, string> = {
-  'New': 'blue', 'Parts Sourcing': 'cyan', 'Assembly': 'purple', 'QC / Testing': 'orange',
+  'New': 'blue', 'Kit Received': 'telegram', 'Parts Sourcing': 'cyan', 'Assembly': 'purple', 'QC / Testing': 'orange',
   'Ready to Ship': 'green', 'Shipped': 'green', 'Complete': 'gray', 'On Hold': 'yellow', 'Sent Out for Repair': 'orange',
 };
 const TRIP_PHASE_COLOR: Record<string, string> = {

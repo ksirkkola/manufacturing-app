@@ -5,8 +5,19 @@ import {
 import { useEffect, useState } from 'react';
 import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
+import BuildDetailModal from './BuildDetailModal';
 
 const INSIGHT_WORK_ORDERS = '6a4ddad5d9b751c8857618a6';
+const INSIGHT_BUILD_STATUS = '6ac76918205b3672b29acae1';
+
+interface BuildStatus {
+  id: string;
+  dateReceived: number | null;
+  receivedFrom: string | null;
+  assemblyProgress: string | null;
+  logEntries: number | null;
+  lastLogDate: number | null;
+}
 
 interface WorkOrderRow {
   id: string;
@@ -36,7 +47,7 @@ function parseInsight(data: { headers: string[]; rows: unknown[][] }): WorkOrder
 }
 
 const PHASE_COLOR: Record<string, string> = {
-  'New': 'blue', 'Parts Sourcing': 'yellow', 'Assembly': 'purple',
+  'New': 'blue', 'Kit Received': 'telegram', 'Parts Sourcing': 'yellow', 'Assembly': 'purple',
   'QC / Testing': 'cyan', 'Ready to Ship': 'green', 'Shipped': 'teal', 'On Hold': 'red',
 };
 
@@ -44,7 +55,7 @@ const PRIORITY_COLOR: Record<string, string> = {
   'Urgent': 'red', 'High': 'orange', 'Normal': 'blue', 'Low': 'gray',
 };
 
-const ALL_PHASES = ['New', 'Parts Sourcing', 'Assembly', 'QC / Testing', 'Ready to Ship', 'Shipped', 'On Hold'];
+const ALL_PHASES = ['New', 'Kit Received', 'Parts Sourcing', 'Assembly', 'QC / Testing', 'Ready to Ship', 'Shipped', 'On Hold'];
 
 interface Props {
   onSelectWorkOrder: (id: string, name: string) => void;
@@ -57,6 +68,9 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPhase, setSelectedPhase] = useState('All');
+  const [status, setStatus] = useState<Record<string, BuildStatus>>({});
+  const [buildOpen, setBuildOpen] = useState<{ id: string; name: string } | null>(null);
+  const [statusTick, setStatusTick] = useState(0);
 
   const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -69,6 +83,14 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
       .then(data => { setRows(parseInsight(data)); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
   }, [inside, refreshKey]);
+
+  // Build status (received date, checklist progress, daily log) comes from its own insight and is merged by id.
+  useEffect(() => {
+    if (!inside) return;
+    fetchInsight(hailer!, INSIGHT_BUILD_STATUS)
+      .then(data => setStatus(Object.fromEntries(parseInsight(data as never).map(r => [(r as unknown as BuildStatus).id, r as unknown as BuildStatus]))))
+      .catch(() => { /* status is optional; the cards still render without it */ });
+  }, [inside, refreshKey, statusTick]);
 
   const filteredRows = selectedPhase === 'All' ? rows : rows.filter(r => r.phase === selectedPhase);
   const phaseCounts = ALL_PHASES.reduce<Record<string, number>>((acc, p) => {
@@ -91,7 +113,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   return (
     <Box>
       {/* Phase summary */}
-      <SimpleGrid columns={{ base: 2, md: 4, lg: 7 }} spacing={3} mb={6}>
+      <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={3} mb={6}>
         {ALL_PHASES.map(p => (
           <Box key={p} p={3} bg={cardBg} borderRadius="md" shadow="sm"
             border="1px" borderColor={borderColor}
@@ -142,6 +164,15 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
 
               <Box px={4} py={3}>
                 <SimpleGrid columns={2} spacing={2} mb={3}>
+                  {status[r.id]?.dateReceived ? (
+                    <Box><Text fontSize="xs" color={labelColor}>Received</Text><Text fontSize="sm" fontWeight="medium">{fmtDate(status[r.id].dateReceived)}{status[r.id].receivedFrom ? ` from ${status[r.id].receivedFrom}` : ''}</Text></Box>
+                  ) : null}
+                  {status[r.id]?.assemblyProgress ? (
+                    <Box><Text fontSize="xs" color={labelColor}>Assembly</Text><Text fontSize="sm" fontWeight="medium">{status[r.id].assemblyProgress}</Text></Box>
+                  ) : null}
+                  {status[r.id]?.logEntries ? (
+                    <Box><Text fontSize="xs" color={labelColor}>Daily log</Text><Text fontSize="sm" fontWeight="medium">{status[r.id].logEntries} entr{Number(status[r.id].logEntries) === 1 ? 'y' : 'ies'}, last {fmtDate(status[r.id].lastLogDate)}</Text></Box>
+                  ) : null}
                   <Box><Text fontSize="xs" color={labelColor}>Build Type</Text><Text fontSize="sm" fontWeight="medium">{r.buildType || '—'}</Text></Box>
                   <Box><Text fontSize="xs" color={labelColor}>Product</Text><Text fontSize="sm" fontWeight="medium" noOfLines={1}>{r.productType || '—'}</Text></Box>
                   <Box><Text fontSize="xs" color={labelColor}>Serial #</Text><Text fontSize="sm" fontWeight="medium">{r.serialNumber || '—'}</Text></Box>
@@ -162,6 +193,9 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
                   <Button size="xs" colorScheme="purple" onClick={() => onSelectWorkOrder(r.id, r.name)}>
                     Pick Parts
                   </Button>
+                  <Button size="xs" colorScheme="blue" onClick={() => setBuildOpen({ id: r.id, name: r.name })}>
+                    Build
+                  </Button>
                   <Button size="xs" variant="outline" onClick={() => hailer!.ui.activity.open(r.id)}>
                     Open
                   </Button>
@@ -170,6 +204,16 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
             </Box>
           ))}
         </SimpleGrid>
+      )}
+
+      {buildOpen && (
+        <BuildDetailModal
+          workOrderId={buildOpen.id}
+          workOrderName={buildOpen.name}
+          isOpen
+          onClose={() => setBuildOpen(null)}
+          onChanged={() => setStatusTick(t => t + 1)}
+        />
       )}
     </Box>
   );
