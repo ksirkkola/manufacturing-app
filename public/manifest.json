@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.29.3",
-  "versionDescription": "Parts Picking: each trip and work order row now has an Open button, and the expanded view has an Open Trip / Case (or Work Order) button, so you can open the case to add notes and discussion without leaving the list.",
+  "version": "1.29.4",
+  "versionDescription": "Parts Picking > Online Orders: Mark Order Fulfilled now works whenever every line item is Picked, even if the order header was left in Pending (it is caught up to Picked first). A failed header status update now shows a warning instead of failing silently.",
   "config": {
     "fields": {}
   }

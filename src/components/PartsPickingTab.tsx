@@ -276,8 +276,10 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     try {
       await hailer!.activity.update([{ _id: orderId, phaseId: targetPhaseId }], {});
       setOnlineOrders(prev => prev.map(o => o.id === orderId ? { ...o, phase: targetPhaseName } : o));
-    } catch {
-      // Non-fatal — the line item itself already saved; the order header can be corrected manually.
+    } catch (err) {
+      // The line item itself already saved, so this is not fatal, but say so instead of leaving the
+      // order header silently out of step with its items.
+      toast({ title: `Order status not updated (should be ${targetPhaseName})`, description: String((err as { msg?: string })?.msg ?? err), status: 'warning', duration: 6000, isClosable: true });
     }
   }
 
@@ -365,6 +367,11 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   async function markOrderFulfilled(orderId: string) {
     setShippingOrder(true);
     try {
+      // Pending/Backordered can't jump straight to Fulfilled; if the header is behind its (all Picked) items, catch it up first.
+      const cur = onlineOrders.find(o => o.id === orderId);
+      if (cur && cur.phase !== 'Picked') {
+        await hailer!.activity.update([{ _id: orderId, phaseId: ONLINE_ORDER_PHASE_PICKED }], {});
+      }
       await hailer!.activity.update([{ _id: orderId, phaseId: ONLINE_ORDER_PHASE_FULFILLED }], {});
       setOnlineOrders(prev => prev.map(o => o.id === orderId ? { ...o, phase: 'Fulfilled' } : o));
       toast({ title: 'Order marked Fulfilled', status: 'success', duration: 2500, isClosable: true });
@@ -468,9 +475,11 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
   const preTravelCount = openTrips.filter(t => t.phase === 'Pre-Travel Activities').length;
   const backorderedOnlineCount = lineItems.filter(l => l.onlineOrder && l.phase === 'Backordered').length;
   const selectedOnlineOrderData = onlineOrders.find(o => o.id === selectedOnlineOrder);
+  // Fulfilled needs every line item Picked; the order's own phase can lag behind its items, so judge by the items.
   const canMarkFulfilled = !!selectedOnlineOrderData
-    && selectedOnlineOrderData.phase === 'Picked'
-    && onlineItems.length > 0;
+    && selectedOnlineOrderData.phase !== 'Fulfilled'
+    && onlineItems.length > 0
+    && onlineItems.every(l => l.phase === 'Picked');
   const openOnlineOrders = onlineOrders
     .filter(o => o.phase !== 'Fulfilled')
     .sort((a, b) => (ONLINE_ORDER_PHASE_RANK[a.phase] ?? 9) - (ONLINE_ORDER_PHASE_RANK[b.phase] ?? 9));
