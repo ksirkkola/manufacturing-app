@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.29.1",
-  "versionDescription": "Work Orders tab: added a + New Work Order button (opens the Work Order form in the New phase, Build Type pre-set to New Build; all employees are added to its discussion). The list refreshes after it is created.",
+  "version": "1.29.2",
+  "versionDescription": "Work Orders tab: added a Sent Out for Repair tile, and Complete work orders are now reachable from the Phase dropdown (at the bottom). The tab now reads from an all-phases insight; Overview is unchanged.",
   "config": {
     "fields": {}
   }

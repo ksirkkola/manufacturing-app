@@ -8,7 +8,8 @@ import { useApp } from '../hailer/use-app';
 import BuildDetailModal from './BuildDetailModal';
 import { createActivityViaDialog } from '../hailer/employees';
 
-const INSIGHT_WORK_ORDERS = '6a4ddad5d9b751c8857618a6';
+// All phases, including Complete (the older shared insight 6a4ddad5... is open-only and still feeds Overview).
+const INSIGHT_WORK_ORDERS = '6ac76b652c2e4a4f134bba35';
 const INSIGHT_BUILD_STATUS = '6ac76918205b3672b29acae1';
 const WORK_ORDER_WORKFLOW = '6a4c9c50b7d11c3c37c9ca77';
 const WORK_ORDER_PHASE_NEW = '6a4c9c7fa218e0e0d33d25a0';
@@ -53,13 +54,16 @@ function parseInsight(data: { headers: string[]; rows: unknown[][] }): WorkOrder
 const PHASE_COLOR: Record<string, string> = {
   'New': 'blue', 'Kit Received': 'telegram', 'Parts Sourcing': 'yellow', 'Assembly': 'purple',
   'QC / Testing': 'cyan', 'Ready to Ship': 'green', 'Shipped': 'teal', 'On Hold': 'red',
+  'Sent Out for Repair': 'orange', 'Complete': 'gray',
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
   'Urgent': 'red', 'High': 'orange', 'Normal': 'blue', 'Low': 'gray',
 };
 
-const ALL_PHASES = ['New', 'Kit Received', 'Parts Sourcing', 'Assembly', 'QC / Testing', 'Ready to Ship', 'Shipped', 'On Hold'];
+const ALL_PHASES = ['New', 'Kit Received', 'Parts Sourcing', 'Assembly', 'QC / Testing', 'Ready to Ship', 'Shipped', 'On Hold', 'Sent Out for Repair'];
+// Complete is not a tile (it would be a pile of finished builds); it is only reachable from the dropdown.
+const DROPDOWN_PHASES = [...ALL_PHASES, 'Complete'];
 
 interface Props {
   onSelectWorkOrder: (id: string, name: string) => void;
@@ -117,7 +121,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   }
 
   const filteredRows = selectedPhase === 'All' ? rows : rows.filter(r => r.phase === selectedPhase);
-  const phaseCounts = ALL_PHASES.reduce<Record<string, number>>((acc, p) => {
+  const phaseCounts = DROPDOWN_PHASES.reduce<Record<string, number>>((acc, p) => {
     acc[p] = rows.filter(r => r.phase === p).length; return acc;
   }, {});
 
@@ -137,7 +141,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   return (
     <Box>
       {/* Phase summary */}
-      <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={3} mb={6}>
+      <SimpleGrid columns={{ base: 2, md: 4, lg: 9 }} spacing={3} mb={6}>
         {ALL_PHASES.map(p => (
           <Box key={p} p={3} bg={cardBg} borderRadius="md" shadow="sm"
             border="1px" borderColor={borderColor}
@@ -157,7 +161,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
           <Text fontWeight="semibold">Phase:</Text>
           <Select size="sm" maxW="200px" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)}>
             <option value="All">All ({rows.length})</option>
-            {ALL_PHASES.map(p => <option key={p} value={p}>{p} ({phaseCounts[p]})</option>)}
+            {DROPDOWN_PHASES.map(p => <option key={p} value={p}>{p} ({phaseCounts[p]})</option>)}
           </Select>
         </HStack>
         <HStack spacing={4}>
