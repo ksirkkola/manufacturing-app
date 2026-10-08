@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.29.0",
-  "versionDescription": "Work Orders tab: new Kit Received phase, received date and source (e.g. TMXA), assembly checklist progress and daily-log summary on each card, and a new Build button opening the checklist (mark steps Done / Skip / Reopen) and the daily build log (add entries).",
+  "version": "1.29.1",
+  "versionDescription": "Work Orders tab: added a + New Work Order button (opens the Work Order form in the New phase, Build Type pre-set to New Build; all employees are added to its discussion). The list refreshes after it is created.",
   "config": {
     "fields": {}
   }

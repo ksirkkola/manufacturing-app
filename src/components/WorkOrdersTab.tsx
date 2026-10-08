@@ -6,9 +6,13 @@ import { useEffect, useState } from 'react';
 import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
 import BuildDetailModal from './BuildDetailModal';
+import { createActivityViaDialog } from '../hailer/employees';
 
 const INSIGHT_WORK_ORDERS = '6a4ddad5d9b751c8857618a6';
 const INSIGHT_BUILD_STATUS = '6ac76918205b3672b29acae1';
+const WORK_ORDER_WORKFLOW = '6a4c9c50b7d11c3c37c9ca77';
+const WORK_ORDER_PHASE_NEW = '6a4c9c7fa218e0e0d33d25a0';
+const WO_FIELD_BUILD_TYPE = '6a4c9ce402e498c78d712857';
 
 interface BuildStatus {
   id: string;
@@ -71,6 +75,8 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
   const [status, setStatus] = useState<Record<string, BuildStatus>>({});
   const [buildOpen, setBuildOpen] = useState<{ id: string; name: string } | null>(null);
   const [statusTick, setStatusTick] = useState(0);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [creating, setCreating] = useState(false);
 
   const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -82,7 +88,7 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
     fetchInsight(hailer!, INSIGHT_WORK_ORDERS)
       .then(data => { setRows(parseInsight(data)); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
-  }, [inside, refreshKey]);
+  }, [inside, refreshKey, reloadTick]);
 
   // Build status (received date, checklist progress, daily log) comes from its own insight and is merged by id.
   useEffect(() => {
@@ -90,7 +96,25 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
     fetchInsight(hailer!, INSIGHT_BUILD_STATUS)
       .then(data => setStatus(Object.fromEntries(parseInsight(data as never).map(r => [(r as unknown as BuildStatus).id, r as unknown as BuildStatus]))))
       .catch(() => { /* status is optional; the cards still render without it */ });
-  }, [inside, refreshKey, statusTick]);
+  }, [inside, refreshKey, statusTick, reloadTick]);
+
+  async function newWorkOrder() {
+    if (!hailer) return;
+    setCreating(true);
+    try {
+      const created = await createActivityViaDialog(hailer, WORK_ORDER_WORKFLOW, {
+        phaseId: WORK_ORDER_PHASE_NEW,
+        fields: { [WO_FIELD_BUILD_TYPE]: 'New Build' },
+      });
+      if (created) {
+        hailer.ui.snackbar.open('Work Order created.', 'OK', 3000).catch(() => {});
+        setReloadTick(t => t + 1);
+      }
+    } catch (err) {
+      console.error('Create work order failed:', err);
+    }
+    setCreating(false);
+  }
 
   const filteredRows = selectedPhase === 'All' ? rows : rows.filter(r => r.phase === selectedPhase);
   const phaseCounts = ALL_PHASES.reduce<Record<string, number>>((acc, p) => {
@@ -136,7 +160,10 @@ export default function WorkOrdersTab({ onSelectWorkOrder, refreshKey = 0 }: Pro
             {ALL_PHASES.map(p => <option key={p} value={p}>{p} ({phaseCounts[p]})</option>)}
           </Select>
         </HStack>
-        <Text fontSize="sm" color={labelColor}>{filteredRows.length} work order{filteredRows.length !== 1 ? 's' : ''}</Text>
+        <HStack spacing={4}>
+          <Text fontSize="sm" color={labelColor}>{filteredRows.length} work order{filteredRows.length !== 1 ? 's' : ''}</Text>
+          <Button size="sm" colorScheme="purple" isLoading={creating} onClick={() => void newWorkOrder()}>+ New Work Order</Button>
+        </HStack>
       </Flex>
 
       {filteredRows.length === 0 ? (
