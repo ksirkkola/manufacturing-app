@@ -45,11 +45,18 @@ export async function withAllEmployees(
   return { ...options, followerIds };
 }
 
-/** Add every employee as follower/discussion member of already-created activities. Never throws. */
-export async function addAllEmployees(hailer: HailerApi, activityIds: Array<string | undefined | null>): Promise<void> {
+/**
+ * Add every employee (or only `onlyUserIds`, for workflows that should be restricted)
+ * as follower/discussion member of already-created activities. Never throws.
+ */
+export async function addAllEmployees(
+  hailer: HailerApi,
+  activityIds: Array<string | undefined | null>,
+  onlyUserIds?: string[],
+): Promise<void> {
   const ids = activityIds.filter((id): id is string => !!id);
   if (!ids.length) return;
-  const employees = await getAllEmployeeIds(hailer);
+  const employees = onlyUserIds ?? (await getAllEmployeeIds(hailer));
   if (!employees.length) return;
   const followers = Object.fromEntries(employees.map(id => [id, true as const]));
   try {
@@ -79,8 +86,9 @@ export async function createActivityViaDialog(
   hailer: HailerApi,
   workflowId: string,
   options?: Parameters<HailerApi['ui']['activity']['create']>[1],
+  onlyUserIds?: string[],
 ) {
   const created = await hailer.ui.activity.create(workflowId, options);
-  if (created?._id) await addAllEmployees(hailer, [created._id]);
+  if (created?._id) await addAllEmployees(hailer, [created._id], onlyUserIds);
   return created;
 }
