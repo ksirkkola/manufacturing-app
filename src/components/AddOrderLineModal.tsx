@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useState } from 'react';
 import {
   Alert, AlertIcon, Badge, Box, Button, HStack, Modal, ModalBody, ModalCloseButton,
@@ -104,7 +105,7 @@ export default function AddOrderLineModal({ isOpen, onClose, orderId, orderName,
       // qty x Unit Cost), so copy the item's current supplier price onto the line as its Unit Cost.
       if (context === 'trip' && item?.supplierPrice) fields[WOLI_UNIT_COST] = item.supplierPrice;
 
-      await hailer!.activity.create(WO_LINE_ITEM_WORKFLOW, [{
+      await createActivities(hailer!, WO_LINE_ITEM_WORKFLOW, [{
         name: `${item?.sku || item?.name || 'Line'} — ${quantity}`,
         phaseId: WOLI_PHASE_PENDING,
         fields,

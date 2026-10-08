@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert, AlertIcon, Box, Button, Divider, FormControl, FormLabel, HStack, IconButton, Input,
@@ -277,7 +278,7 @@ export default function NewOnlineOrderModal({ isOpen, onClose, onSuccess }: Prop
       // not the follower list. Follow both the assignee AND whoever's uploading this order —
       // the creator needs to know the moment it's marked Fulfilled just as much as the picker does.
       const followerIds = Array.from(new Set([user.current?._id, assignedToId].filter(Boolean))) as string[];
-      const created = await hailer!.activity.create(ONLINE_ORDER_WORKFLOW, [{
+      const created = await createActivities(hailer!, ONLINE_ORDER_WORKFLOW, [{
         name: `Order #${orderNumber.trim()}`,
         phaseId: ONLINE_ORDER_PHASE_PENDING,
         fields: headerFields,
@@ -288,7 +289,7 @@ export default function NewOnlineOrderModal({ isOpen, onClose, onSuccess }: Prop
       const orderId = created?.[0]?._id;
       if (!orderId) throw new Error('Order was not created — check Hailer before retrying.');
 
-      await hailer!.activity.create(WO_LINE_ITEM_WORKFLOW, validLines.map((l) => {
+      await createActivities(hailer!, WO_LINE_ITEM_WORKFLOW, validLines.map((l) => {
         const item = items.find((i) => i._id === l.itemId);
         const fields: Record<string, ActivityFieldValue> = {
           [WOLI_ONLINE_ORDER]: orderId,

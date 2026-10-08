@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useState } from 'react';
 import {
   Alert, AlertIcon, Box, Button, Divider, FormControl, FormLabel, HStack, IconButton, Input,
@@ -160,7 +161,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
       if (deliveryMs) headerFields[PO_EXPECTED_DELIVERY_DATE] = deliveryMs;
       if (notes.trim()) headerFields[PO_NOTES] = notes.trim();
 
-      const created = await hailer!.activity.create(PO_WORKFLOW, [{
+      const created = await createActivities(hailer!, PO_WORKFLOW, [{
         name: `${supplier.trim()}${orderReference.trim() ? ' - ' + orderReference.trim() : ''}`,
         phaseId: PO_PHASE_ORDERED,
         fields: headerFields,
@@ -169,7 +170,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
       const orderId = created?.[0]?._id;
       if (!orderId) throw new Error('Order was not created — check Hailer before retrying.');
 
-      await hailer!.activity.create(PO_LINE_WORKFLOW, validLines.map((l) => {
+      await createActivities(hailer!, PO_LINE_WORKFLOW, validLines.map((l) => {
         const item = items.find((i) => i._id === l.itemId);
         const fields: Record<string, ActivityFieldValue> = {
           [POL_PARENT_ORDER]: orderId,

@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import {
   Accordion, AccordionButton, AccordionIcon, AccordionItem, AccordionPanel,
   Box, Badge, Button, Center, Flex, Heading, HStack, Icon, Image, Spinner,
@@ -249,7 +250,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
     if (workOrderId)        fields[STF_WO]   = workOrderId;
     if (tripId)             fields[STF_TRIP] = tripId;
 
-    await hailer!.activity.create(STOCK_TXN_WORKFLOW, [{
+    await createActivities(hailer!, STOCK_TXN_WORKFLOW, [{
       name: `${type} — ${item.partNumber || item.name}`,
       phaseId: STOCK_TXN_PHASE,
       fields,

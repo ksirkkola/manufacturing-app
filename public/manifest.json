@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.28.2",
-  "versionDescription": "Fixed Parts Picking > Online Orders: the 'Closed Orders' section was listing closed Trips instead of fulfilled online orders (a mistake introduced in v1.25.1). It shows fulfilled online orders again, exactly as before.",
+  "version": "1.28.3",
+  "versionDescription": "Every activity created from this app now adds all employees (except Robert Broman, Nico Larsen and the bot) to its discussion.",
   "config": {
     "fields": {}
   }

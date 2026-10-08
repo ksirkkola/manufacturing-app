@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useState } from 'react';
 import {
   Alert, AlertIcon, Button, FormControl, FormLabel, Input, Modal, ModalBody,
@@ -41,7 +42,7 @@ export default function NewSensorUnitModal({ isOpen, onClose, onSuccess }: Props
     setError(null);
     try {
       const newSku = NEW_SKU_BY_TYPE[sensorType];
-      await hailer!.activity.create(SENSOR_UNITS_WORKFLOW, [{
+      await createActivities(hailer!, SENSOR_UNITS_WORKFLOW, [{
         name: `${sensorType} — ${serialNumber.trim()}`,
         phaseId: PHASE_NEW,
         fields: {

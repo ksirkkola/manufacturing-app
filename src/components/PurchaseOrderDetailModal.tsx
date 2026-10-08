@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useState } from 'react';
 import {
   Badge, Box, Button, Divider, Flex, HStack, Modal, ModalBody, ModalCloseButton,
@@ -90,7 +91,7 @@ export default function PurchaseOrderDetailModal({ order, onClose, onChanged }: 
         [STF_DATE]: Date.now(),
       } as Record<string, ActivityFieldValue>;
       if (line.sku) txnFields[STF_SKU] = line.sku;
-      await hailer!.activity.create(STOCK_TXN_WORKFLOW, [{
+      await createActivities(hailer!, STOCK_TXN_WORKFLOW, [{
         name: `Received — ${line.sku || line.inventoryName || 'item'} (PO)`,
         phaseId: STOCK_TXN_PHASE,
         fields: txnFields,

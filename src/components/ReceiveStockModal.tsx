@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useState } from 'react';
 import {
   Alert, AlertIcon, Button, FormControl, FormLabel, Input, Modal, ModalBody,
@@ -135,7 +136,7 @@ export default function ReceiveStockModal({ isOpen, onClose, onSuccess }: Props)
       if (unitCost) fields[STF_UNIT_COST] = Number(unitCost);
       if (poRef) fields[STF_NOTES] = poRef;
 
-      await hailer!.activity.create(STOCK_TXN_WORKFLOW, [{
+      await createActivities(hailer!, STOCK_TXN_WORKFLOW, [{
         name: `Received — ${selectedItem.sku || selectedItem.name}`,
         phaseId: STOCK_TXN_PHASE,
         fields,

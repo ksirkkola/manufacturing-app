@@ -1,3 +1,4 @@
+import { createActivities } from '../hailer/employees';
 import { useEffect, useState } from 'react';
 import {
   Alert, AlertIcon, Button, FormControl, FormLabel, Modal, ModalBody,
@@ -77,7 +78,7 @@ export default function ReserveSensorModal({ isOpen, onClose, onSuccess, unitId,
       }], {});
 
       // 2. Open a Sensor Usage Log entry — the accumulating history.
-      await hailer!.activity.create(SENSOR_USAGE_LOG_WORKFLOW, [{
+      await createActivities(hailer!, SENSOR_USAGE_LOG_WORKFLOW, [{
         name: `${unitName} — checked out`,
         phaseId: PHASE_IN_USE,
         fields: {
