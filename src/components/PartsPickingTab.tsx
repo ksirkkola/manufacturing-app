@@ -535,6 +535,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             <Th>Customer</Th>
             <Th>Status</Th>
             <Th>Parts</Th>
+            <Th w="1%"></Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -543,7 +544,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             return (
               <Fragment key={y}>
                 <Tr bg={theadBg}>
-                  <Td colSpan={7} py={2} fontWeight="bold" fontSize="sm">
+                  <Td colSpan={8} py={2} fontWeight="bold" fontSize="sm">
                     {y} <Text as="span" fontWeight="normal" color="gray.500">({group.length})</Text>
                   </Td>
                 </Tr>
@@ -587,11 +588,15 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
               </HStack>
             )}
           </Td>
+          <Td w="1%" whiteSpace="nowrap">
+            <Button size="xs" variant="outline" onClick={e => { e.stopPropagation(); hailer!.ui.activity.open(w.id); }}>Open</Button>
+          </Td>
         </Tr>
         {open && (
           <Tr>
-            <Td colSpan={7} p={4} borderBottom="1px" borderColor={borderColor}>
+            <Td colSpan={8} p={4} borderBottom="1px" borderColor={borderColor}>
               <HStack mb={3}>
+                <Button size="xs" colorScheme="purple" onClick={() => hailer!.ui.activity.open(w.id)}>Open Work Order (notes)</Button>
                 <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setAddPartWO(w)}>+ Add Part</Button>
                 <Button size="xs" variant="outline" isDisabled={items.length === 0} isLoading={pickListBusy === w.id}
                   onClick={() => downloadWOPickList(w)}>⬇ Pick List (PDF)</Button>
@@ -618,6 +623,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             <Th>Company</Th>
             <Th>Status</Th>
             <Th>Parts</Th>
+            <Th w="1%"></Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -626,7 +632,7 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
             return (
               <Fragment key={y}>
                 <Tr bg={theadBg}>
-                  <Td colSpan={6} py={2} fontWeight="bold" fontSize="sm">
+                  <Td colSpan={7} py={2} fontWeight="bold" fontSize="sm">
                     {y} <Text as="span" fontWeight="normal" color="gray.500">({group.length})</Text>
                   </Td>
                 </Tr>
@@ -671,11 +677,15 @@ export default function PartsPickingTab({ selectedWorkOrderId, selectedWorkOrder
               </HStack>
             )}
           </Td>
+          <Td w="1%" whiteSpace="nowrap">
+            <Button size="xs" variant="outline" onClick={e => { e.stopPropagation(); hailer!.ui.activity.open(t.id); }}>Open</Button>
+          </Td>
         </Tr>
         {open && (
           <Tr>
-            <Td colSpan={6} p={4} borderBottom="1px" borderColor={borderColor}>
+            <Td colSpan={7} p={4} borderBottom="1px" borderColor={borderColor}>
               <HStack mb={3}>
+                <Button size="xs" colorScheme="purple" onClick={() => hailer!.ui.activity.open(t.id)}>Open Trip / Case (notes)</Button>
                 <Button size="xs" colorScheme="blue" variant="outline" onClick={() => setAddPartTrip(t)}>+ Add Part</Button>
                 <Button size="xs" variant="outline" isDisabled={items.length === 0} isLoading={pickListBusy === t.id}
                   onClick={() => downloadPickList(t)}>⬇ Pick List (PDF)</Button>

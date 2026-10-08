@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.29.2",
-  "versionDescription": "Work Orders tab: added a Sent Out for Repair tile, and Complete work orders are now reachable from the Phase dropdown (at the bottom). The tab now reads from an all-phases insight; Overview is unchanged.",
+  "version": "1.29.3",
+  "versionDescription": "Parts Picking: each trip and work order row now has an Open button, and the expanded view has an Open Trip / Case (or Work Order) button, so you can open the case to add notes and discussion without leaving the list.",
   "config": {
     "fields": {}
   }
