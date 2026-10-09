@@ -74,7 +74,13 @@ export async function createActivities(
   workflowId: string,
   items: NewActivity[],
   options: ActivityCreateOptions = {},
+  /** Only these users instead of everyone (for workflows that should stay restricted, e.g. Opportunities). */
+  onlyUserIds?: string[],
 ): Promise<Activity[]> {
+  if (onlyUserIds) {
+    const followerIds = Array.from(new Set([...(options.followerIds ?? []), ...onlyUserIds]));
+    return hailer.activity.create(workflowId, items, { ...options, followerIds });
+  }
   return hailer.activity.create(workflowId, items, await withAllEmployees(hailer, options));
 }
 
