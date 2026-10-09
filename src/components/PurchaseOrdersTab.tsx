@@ -122,7 +122,7 @@ export default function PurchaseOrdersTab({ refreshKey = 0 }: RefreshProps) {
                 </SimpleGrid>
                 <HStack spacing={2} onClick={(e) => e.stopPropagation()}>
                   <Button size="xs" colorScheme="purple" onClick={() => setSelected(r)}>
-                    {r.phase === 'Received' ? 'View' : 'Receive'}
+                    {r.phase === 'Received' ? 'View' : r.phase === 'Draft' ? 'Review / Edit' : 'Receive'}
                   </Button>
                   <Button size="xs" variant="outline" onClick={() => hailer!.ui.activity.open(r.id)}>Open</Button>
                   {(r.phase === 'Draft' || r.phase === 'Ordered') && (

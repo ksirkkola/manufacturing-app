@@ -235,8 +235,8 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
               </FormControl>
             </HStack>
 
-            <FormControl isRequired>
-              <FormLabel fontSize="sm">Approved By</FormLabel>
+            <FormControl>
+              <FormLabel fontSize="sm">Approved By <Text as="span" fontSize="xs" color="gray.500">(needed to place the order, not for a draft)</Text></FormLabel>
               <SearchableSelect
                 value={approvedBy}
                 onChange={(v) => setApprovedBy(v || null)}
@@ -293,11 +293,11 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose}>Cancel</Button>
-          <Button variant="outline" mr={3} onClick={() => void handleSubmit(true)} isDisabled={submitting}>
-            Save as Draft
+          <Button variant="outline" mr={3} onClick={() => void handleSubmit(false)} isDisabled={submitting}>
+            Place Order Now
           </Button>
-          <Button colorScheme="blue" onClick={() => void handleSubmit(false)} isLoading={submitting}>
-            Create Order
+          <Button colorScheme="blue" onClick={() => void handleSubmit(true)} isLoading={submitting}>
+            Save as Draft
           </Button>
         </ModalFooter>
       </ModalContent>

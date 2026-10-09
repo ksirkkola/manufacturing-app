@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.30.0",
-  "versionDescription": "Purchase Orders: edit an order (supplier, reference, dates, approver, notes), edit or remove lines, add items to an open order, Mark as Draft / Place order, and Save as Draft on new orders. Inventory: supplier filter, select-all, Select low/out of stock, and Reorder Selected now makes one order per supplier (e.g. TMXA, McMaster-Carr) with unit costs prefilled.",
+  "version": "1.30.1",
+  "versionDescription": "Purchase Orders: new orders (including Reorder Selected) are now saved as Drafts by default so they can be reviewed first; Place Order Now is the secondary option. Approved By is only needed when placing the order. Draft cards show Review / Edit.",
   "config": {
     "fields": {}
   }
