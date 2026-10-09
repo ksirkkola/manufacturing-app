@@ -10,7 +10,7 @@ import { useApp } from '../hailer/use-app';
 import SearchableSelect from './SearchableSelect';
 import { HailerXSmall } from '../hailer/theme/icons/HailerXSmall';
 import {
-  PO_WORKFLOW, PO_PHASE_ORDERED, PO_SUPPLIER, PO_ORDER_REFERENCE, PO_ORDER_DATE,
+  PO_WORKFLOW, PO_PHASE_ORDERED, PO_PHASE_DRAFT, PO_SUPPLIER, PO_ORDER_REFERENCE, PO_ORDER_DATE,
   PO_EXPECTED_DELIVERY_DATE, PO_NOTES, PO_APPROVED_BY,
   PO_LINE_WORKFLOW, POL_PHASE_PENDING, POL_PARENT_ORDER, POL_INVENTORY_ITEM, POL_SKU,
   POL_QTY_ORDERED, POL_UNIT_COST,
@@ -50,7 +50,7 @@ function parseInsight(data: { headers: string[]; rows: unknown[][] }): Record<st
 // Inventory tab) instead of the blank "+ New Purchase Order" form. Multiple low-stock
 // items from the same manufacturer can be batched onto one PO this way — select several
 // rows, hit "Reorder Selected", and they all show up here as separate lines already.
-interface PrefillLine { itemId: string; sku?: string | null; quantity?: number; }
+interface PrefillLine { itemId: string; sku?: string | null; quantity?: number; unitCost?: number | null; }
 
 interface Props {
   isOpen: boolean;
@@ -58,9 +58,11 @@ interface Props {
   onSuccess: () => void;
   prefillLines?: PrefillLine[] | null;
   prefillSupplier?: string | null;
+  /** e.g. "Order 1 of 2" when several supplier orders are being created in a row. */
+  queueLabel?: string | null;
 }
 
-export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, prefillLines, prefillSupplier }: Props) {
+export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, prefillLines, prefillSupplier, queueLabel }: Props) {
   const { hailer, user } = useApp();
   const toast = useToast();
 
@@ -116,7 +118,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
         key: Math.random().toString(36).slice(2),
         itemId: p.itemId,
         quantity: p.quantity ? String(p.quantity) : '',
-        unitCost: '',
+        unitCost: p.unitCost ? String(p.unitCost) : '',
       })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,18 +144,19 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
 
   const validLines = lines.filter((l) => l.itemId && Number(l.quantity) > 0);
 
-  async function handleSubmit() {
+  async function handleSubmit(asDraft = false) {
     if (!supplier.trim()) { setError('Supplier is required.'); return; }
     if (validLines.length === 0) { setError('Add at least one line item with a quantity.'); return; }
-    if (!approvedBy) { setError('Approved By is required — this order is created directly into Ordered, where money commits.'); return; }
+    if (!asDraft && !approvedBy) { setError('Approved By is required — this order is created directly into Ordered, where money commits.'); return; }
 
     setSubmitting(true);
     setError(null);
     try {
       const headerFields: Record<string, ActivityFieldValue> = {
         [PO_SUPPLIER]: supplier.trim(),
-        [PO_APPROVED_BY]: approvedBy,
       };
+      // Approved By is only required once the order is placed (Ordered); a draft can leave it empty.
+      if (approvedBy) headerFields[PO_APPROVED_BY] = approvedBy;
       if (orderReference.trim()) headerFields[PO_ORDER_REFERENCE] = orderReference.trim();
       const orderMs = dateInputToMs(orderDate);
       if (orderMs) headerFields[PO_ORDER_DATE] = orderMs;
@@ -163,7 +166,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
 
       const created = await createActivities(hailer!, PO_WORKFLOW, [{
         name: `${supplier.trim()}${orderReference.trim() ? ' - ' + orderReference.trim() : ''}`,
-        phaseId: PO_PHASE_ORDERED,
+        phaseId: asDraft ? PO_PHASE_DRAFT : PO_PHASE_ORDERED,
         fields: headerFields,
       }], {});
 
@@ -186,7 +189,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
         };
       }), {});
 
-      toast({ title: 'Purchase order created', description: supplier, status: 'success', duration: 3000, isClosable: true });
+      toast({ title: asDraft ? 'Draft purchase order saved' : 'Purchase order created', description: supplier, status: 'success', duration: 3000, isClosable: true });
       onSuccess();
       handleClose();
     } catch (err) {
@@ -199,7 +202,7 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
     <Modal isOpen={isOpen} onClose={handleClose} size="lg">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>New Purchase Order</ModalHeader>
+        <ModalHeader>New Purchase Order{queueLabel ? <Text as="span" fontSize="sm" fontWeight="normal" color="gray.500" ml={2}>{queueLabel}</Text> : null}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack align="stretch" spacing={4}>
@@ -290,7 +293,10 @@ export default function NewPurchaseOrderModal({ isOpen, onClose, onSuccess, pref
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose}>Cancel</Button>
-          <Button colorScheme="blue" onClick={handleSubmit} isLoading={submitting}>
+          <Button variant="outline" mr={3} onClick={() => void handleSubmit(true)} isDisabled={submitting}>
+            Save as Draft
+          </Button>
+          <Button colorScheme="blue" onClick={() => void handleSubmit(false)} isLoading={submitting}>
             Create Order
           </Button>
         </ModalFooter>

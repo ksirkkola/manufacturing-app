@@ -1,8 +1,8 @@
 {
   "author": "Thermetrics",
   "appId": "6a4dde76cf05d56ac9e4f121",
-  "version": "1.29.4",
-  "versionDescription": "Parts Picking > Online Orders: Mark Order Fulfilled now works whenever every line item is Picked, even if the order header was left in Pending (it is caught up to Picked first). A failed header status update now shows a warning instead of failing silently.",
+  "version": "1.30.0",
+  "versionDescription": "Purchase Orders: edit an order (supplier, reference, dates, approver, notes), edit or remove lines, add items to an open order, Mark as Draft / Place order, and Save as Draft on new orders. Inventory: supplier filter, select-all, Select low/out of stock, and Reorder Selected now makes one order per supplier (e.g. TMXA, McMaster-Carr) with unit costs prefilled.",
   "config": {
     "fields": {}
   }

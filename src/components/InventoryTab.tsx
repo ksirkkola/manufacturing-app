@@ -3,7 +3,7 @@ import {
   SimpleGrid, Spinner, Stat, StatHelpText, StatLabel, StatNumber,
   Table, Tbody, Td, Text, Th, Thead, Tr, useColorModeValue, Select, HStack,
 } from '@chakra-ui/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchInsight } from '../hailer/insight-queue';
 import { useApp } from '../hailer/use-app';
 import { HailerDocImage } from '../hailer/theme/icons/HailerDocImage';
@@ -65,6 +65,11 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
   const [filter, setFilter]     = useState('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reorderRows, setReorderRows] = useState<InventoryRow[] | null>(null);
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  // Reorder Selected: one order per supplier, worked through one after another.
+  const [queue, setQueue] = useState<InventoryRow[][]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const advanced = useRef(false);
 
   const cardBg      = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -93,8 +98,17 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
       filter === 'low' ? (r.minimumStock || 0) > 0 && (r.quantityOnHand || 0) <= (r.minimumStock || 0) :
       filter === 'out' ? (r.quantityOnHand || 0) === 0 : true;
 
-    return matchSearch && matchFilter;
+    const matchSupplier = supplierFilter === 'all' ? true : (r.supplier || '').trim() === (supplierFilter === 'none' ? '' : supplierFilter);
+
+    return matchSearch && matchFilter && matchSupplier;
   });
+
+  // Suppliers present in the inventory, most used first, so the common ones (TMXA, McMaster-Carr) sit at the top.
+  const supplierOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    rows.forEach(r => { const k = (r.supplier || '').trim(); counts.set(k, (counts.get(k) || 0) + 1); });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [rows]);
 
   function suggestedQty(r: InventoryRow): number {
     const qty = Number(r.quantityOnHand) || 0;
@@ -110,18 +124,50 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
     });
   }
 
-  // If every selected row shares the same Supplier text, pre-fill it on the PO —
-  // otherwise leave it blank since the modal's Supplier field is one value for the whole order.
-  const reorderPrefill = useMemo(() => {
-    if (!reorderRows || reorderRows.length === 0) return null;
-    const suppliers = new Set(reorderRows.map(r => (r.supplier || '').trim()).filter(Boolean));
+  const selectedRows = rows.filter(r => selected.has(r.id));
+
+  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id));
+  const someFilteredSelected = filteredRows.some(r => selected.has(r.id));
+  function toggleAllFiltered() {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allFilteredSelected) filteredRows.forEach(r => next.delete(r.id));
+      else filteredRows.forEach(r => next.add(r.id));
+      return next;
+    });
+  }
+  // Tick every low / out-of-stock item in the current view (e.g. all low-stock TMXA items) in one click.
+  function selectNeedingReorder() {
+    setSelected(prev => {
+      const next = new Set(prev);
+      filteredRows.forEach(r => {
+        const q = Number(r.quantityOnHand) || 0, m = Number(r.minimumStock) || 0;
+        if (q === 0 || (m > 0 && q <= m)) next.add(r.id);
+      });
+      return next;
+    });
+  }
+
+  // Group the ticked items by supplier and open one purchase order per supplier.
+  function startReorderSelected() {
+    const groups = new Map<string, InventoryRow[]>();
+    selectedRows.forEach(r => { const k = (r.supplier || '').trim(); groups.set(k, [...(groups.get(k) || []), r]); });
+    const list = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([, v]) => v);
+    advanced.current = false;
+    setQueueTotal(list.length);
+    setQueue(list);
+  }
+  const queueRows = queue[0] ?? null;
+  const activeRows = queueRows ?? reorderRows;
+  const activePrefill = useMemo(() => {
+    if (!activeRows || activeRows.length === 0) return null;
+    const suppliers = new Set(activeRows.map(r => (r.supplier || '').trim()).filter(Boolean));
     return {
-      lines: reorderRows.map(r => ({ itemId: r.id, sku: r.sku, quantity: suggestedQty(r) })),
+      lines: activeRows.map(r => ({ itemId: r.id, sku: r.sku, quantity: suggestedQty(r), unitCost: r.supplierPrice })),
       supplier: suppliers.size === 1 ? [...suppliers][0] : null,
     };
-  }, [reorderRows]);
-
-  const selectedRows = rows.filter(r => selected.has(r.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRows]);
 
   if (loading) return <Flex justify="center" align="center" h="300px"><Spinner size="xl" /></Flex>;
   if (error)   return <Text color="red.500">Error: {error}</Text>;
@@ -177,10 +223,18 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
           <option value="out">Out of Stock</option>
         </Select>
         <Text fontSize="sm" color="gray.500">{filteredRows.length} items</Text>
+        <Select size="sm" maxW="200px" value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
+          <option value="all">All suppliers</option>
+          {supplierOptions.map(([name, n]) => <option key={name || 'none'} value={name || 'none'}>{(name || 'No supplier')} ({n})</option>)}
+        </Select>
+        <Button size="sm" variant="outline" onClick={selectNeedingReorder}>Select low / out of stock</Button>
         {selected.size > 0 && (
-          <Button size="sm" colorScheme="blue" onClick={() => setReorderRows(selectedRows)}>
-            Reorder Selected ({selected.size})
-          </Button>
+          <>
+            <Button size="sm" colorScheme="blue" onClick={startReorderSelected}>
+              Reorder Selected ({selected.size})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+          </>
         )}
       </HStack>
 
@@ -189,7 +243,9 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
         <Table variant="simple" size="sm">
           <Thead bg={theadBg}>
             <Tr>
-              <Th px={2}></Th>
+              <Th px={2}>
+                <Checkbox isChecked={allFilteredSelected} isIndeterminate={!allFilteredSelected && someFilteredSelected} onChange={toggleAllFiltered} />
+              </Th>
               <Th>Photo</Th>
               <Th>SKU</Th>
               <Th>Name</Th>
@@ -262,11 +318,26 @@ export default function InventoryTab({ refreshKey = 0 }: RefreshProps) {
       </Box>
 
       <NewPurchaseOrderModal
-        isOpen={!!reorderRows}
-        onClose={() => setReorderRows(null)}
-        onSuccess={() => { setReorderRows(null); setSelected(new Set()); }}
-        prefillLines={reorderPrefill?.lines}
-        prefillSupplier={reorderPrefill?.supplier}
+        key={queueRows ? `q${queueTotal - queue.length}` : 'single'}
+        isOpen={!!activeRows}
+        queueLabel={queueRows && queueTotal > 1 ? `Order ${queueTotal - queue.length + 1} of ${queueTotal}` : null}
+        // Cancel stops the whole run; a successful save moves on to the next supplier.
+        onClose={() => {
+          if (advanced.current) { advanced.current = false; return; }
+          setQueue([]); setReorderRows(null);
+        }}
+        onSuccess={() => {
+          if (queueRows) {
+            advanced.current = true;
+            const rest = queue.slice(1);
+            setQueue(rest);
+            if (rest.length === 0) setSelected(new Set());
+          } else {
+            setReorderRows(null); setSelected(new Set());
+          }
+        }}
+        prefillLines={activePrefill?.lines}
+        prefillSupplier={activePrefill?.supplier}
       />
     </Box>
   );
